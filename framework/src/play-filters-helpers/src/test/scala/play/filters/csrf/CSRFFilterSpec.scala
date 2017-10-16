@@ -6,13 +6,17 @@ package play.filters.csrf
 import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 import play.api.ApplicationLoader.Context
-import play.api.http.HttpFilters
+import play.api.http.{ HttpEntity, HttpFilters }
 import play.api.inject.DefaultApplicationLifecycle
 import play.api.inject.guice.{ GuiceApplicationBuilder, GuiceApplicationLoader }
 import play.api.libs.json.Json
 import play.api.libs.ws._
-import play.api.mvc.{ DefaultActionBuilder, RequestHeader, Results }
+import play.api.mvc.Handler.Stage
+import play.api.mvc._
+import play.api.routing.{ HandlerDef, Router }
 import play.api.test._
 import play.api.{ Configuration, Environment, Mode }
 import play.core.DefaultWebCommands
@@ -35,7 +39,7 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
       buildCsrfAddToken()(_.put(""))(_.status must_== NOT_FOUND)
     }
     "not add a token to GET requests that don't accept HTML" in {
-      buildCsrfAddToken()(_.withHeaders(ACCEPT -> "application/json").get())(_.status must_== NOT_FOUND)
+      buildCsrfAddToken()(_.addHttpHeaders(ACCEPT -> "application/json").get())(_.status must_== NOT_FOUND)
     }
     "not add a token to responses that set cache headers" in {
       buildCsrfAddResponseHeaders(CACHE_CONTROL -> "public, max-age=3600")(_.get())(_.cookies must be empty)
@@ -43,37 +47,55 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
     "add a token to responses that set 'no-cache' headers" in {
       buildCsrfAddResponseHeaders(CACHE_CONTROL -> "no-cache")(_.get())(_.cookies must not be empty)
     }
-    "not add a token when responding to GET requests that accept HTML and don't render the token" in {
-      buildCsrfAddTokenNoRender()(_.withHeaders(ACCEPT -> "text/html").get())(_.cookies must be empty)
-    }
-    "not add a token when responding to GET requests that accept XHTML and don't render the token" in {
-      buildCsrfAddTokenNoRender()(_.withHeaders(ACCEPT -> "application/xhtml+xml").get())(_.cookies must be empty)
-    }
     "add a token to GET requests that accept HTML" in {
-      buildCsrfAddToken()(_.withHeaders(ACCEPT -> "text/html").get())(_.status must_== OK)
+      buildCsrfAddToken()(_.addHttpHeaders(ACCEPT -> "text/html").get())(_.status must_== OK)
     }
     "add a token to GET requests that accept XHTML" in {
-      buildCsrfAddToken()(_.withHeaders(ACCEPT -> "application/xhtml+xml").get())(_.status must_== OK)
+      buildCsrfAddToken()(_.addHttpHeaders(ACCEPT -> "application/xhtml+xml").get())(_.status must_== OK)
     }
     "not add a token to HEAD requests that don't accept HTML" in {
-      buildCsrfAddToken()(_.withHeaders(ACCEPT -> "application/json").head())(_.status must_== NOT_FOUND)
+      buildCsrfAddToken()(_.addHttpHeaders(ACCEPT -> "application/json").head())(_.status must_== NOT_FOUND)
     }
     "add a token to HEAD requests that accept HTML" in {
-      buildCsrfAddToken()(_.withHeaders(ACCEPT -> "text/html").head())(_.status must_== OK)
+      buildCsrfAddToken()(_.addHttpHeaders(ACCEPT -> "text/html").head())(_.status must_== OK)
     }
 
     // extra conditions for doing a check
     "check non form bodies" in {
-      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.withCookies("foo" -> "bar").post(Json.obj("foo" -> "bar")))(_.status must_== FORBIDDEN)
+      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.addCookie("foo" -> "bar").post(Json.obj("foo" -> "bar")))(_.status must_== FORBIDDEN)
     }
     "check all methods" in {
-      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.withCookies("foo" -> "bar").delete())(_.status must_== FORBIDDEN)
+      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.addCookie("foo" -> "bar").delete())(_.status must_== FORBIDDEN)
     }
     "not check safe methods" in {
-      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.withCookies("foo" -> "bar").options())(_.status must_== OK)
+      buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.addCookie("foo" -> "bar").options())(_.status must_== OK)
     }
     "not check requests with no cookies" in {
       buildCsrfCheckRequest(sendUnauthorizedResult = false)(_.post(Map("foo" -> "bar")))(_.status must_== OK)
+    }
+
+    "not add a token when responding to GET requests that accept HTML and don't get the token" in {
+      buildCsrfAddTokenNoRender(false)(_.addHttpHeaders(ACCEPT -> "text/html").get())(_.cookies must be empty)
+    }
+    "not add a token when responding to GET requests that accept XHTML and don't get the token" in {
+      buildCsrfAddTokenNoRender(false)(_.addHttpHeaders(ACCEPT -> "application/xhtml+xml").get())(_.cookies must be empty)
+    }
+    "add a token when responding to GET requests that don't get the token, if using non-HTTPOnly session cookie" in {
+      buildCsrfAddTokenNoRender(
+        false,
+        "play.filters.csrf.cookie.name" -> null,
+        "play.http.session.httpOnly" -> "false"
+      )(_.addHttpHeaders(ACCEPT -> "text/html").get())(_.cookies must not be empty)
+    }
+    "add a token when responding to GET requests that don't get the token, if using non-HTTPOnly cookie" in {
+      buildCsrfAddTokenNoRender(
+        false,
+        "play.filters.csrf.cookie.name" -> "csrf",
+        "play.filters.csrf.cookie.httpOnly" -> "false"
+      )(_.addHttpHeaders(ACCEPT -> "text/html").get())(_.cookies must not be empty)
+    }
+    "add a token when responding to GET requests that don't get the token, if response is streamed" in {
+      buildCsrfAddTokenNoRender(true)(_.addHttpHeaders(ACCEPT -> "text/html").get())(_.cookies must not be empty)
     }
 
     // other
@@ -93,6 +115,41 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
         val token = signedTokenProvider.generateToken
         await(ws.url("http://localhost:" + testServerPort).withSession(TokenName -> token)
           .post(Map("foo" -> "bar", TokenName -> token))).body must_== "bar"
+      }
+    }
+
+    "allow bypassing the CSRF filter using a route modifier tag" in {
+      withActionServer(Seq(
+        "play.http.filters" -> classOf[CsrfFilters].getName
+      ))(implicit app => {
+        case _ =>
+          val env = inject[Environment]
+          val Action = inject[DefaultActionBuilder]
+          new Stage {
+            override def apply(requestHeader: RequestHeader): (RequestHeader, Handler) = {
+              (requestHeader.addAttr(Router.Attrs.HandlerDef, HandlerDef(
+                env.classLoader,
+                "routes",
+                "FooController",
+                "foo",
+                Seq.empty,
+                "POST",
+                "/foo",
+                "comments",
+                Seq("NOCSRF", "api")
+              )), Action { request =>
+                request.body.asFormUrlEncoded
+                  .flatMap(_.get("foo"))
+                  .flatMap(_.headOption)
+                  .map(Results.Ok(_))
+                  .getOrElse(Results.NotFound)
+              })
+            }
+          }
+      }){ ws =>
+        val token = signedTokenProvider.generateToken
+        await(ws.url("http://localhost:" + testServerPort).withSession(TokenName -> token)
+          .post(Map("foo" -> "bar"))).body must_== "bar"
       }
     }
 
@@ -124,7 +181,7 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
       val token = signedTokenProvider.generateToken
       val ws = inject[WSClient]
       val response = await(ws.url("http://localhost:" + port).withSession(TokenName -> token)
-        .withHeaders(CONTENT_TYPE -> "application/x-www-form-urlencoded")
+        .addHttpHeaders(CONTENT_TYPE -> "application/x-www-form-urlencoded")
         .post(
           Seq(
             // Ensure token is first so that it makes it into the buffered part
@@ -145,7 +202,7 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
       def csrfAddToken = buildCsrfAddToken("csrf.cookie.name" -> "csrf")
       def generate = signedTokenProvider.generateToken
       def addToken(req: WSRequest, token: String) = req.withCookies("csrf" -> token)
-      def getToken(response: WSResponse) = response.cookies.find(_.name.exists(_ == "csrf")).flatMap(_.value)
+      def getToken(response: WSResponse) = response.cookie("csrf").map(_.value)
       def compareTokens(a: String, b: String) = signedTokenProvider.compareTokens(a, b) must beTrue
 
       sharedTests(csrfCheckRequest, csrfAddToken, generate, addToken, getToken, compareTokens, UNAUTHORIZED)
@@ -222,14 +279,21 @@ class CSRFFilterSpec extends CSRFCommonSpecs {
     }
   }
 
-  def buildCsrfAddTokenNoRender(configuration: (String, String)*) = new CsrfTester {
+  def buildCsrfAddTokenNoRender(streamed: Boolean, configuration: (String, String)*) = new CsrfTester {
     def apply[T](makeRequest: (WSRequest) => Future[WSResponse])(handleResponse: (WSResponse) => T) = {
       withActionServer(
         configuration ++ Seq("play.http.filters" -> classOf[CsrfFilters].getName)
       ) (implicit app => {
           case _ =>
             val Action = inject[DefaultActionBuilder]
-            Action(Results.Ok("Hello world!"))
+            if (streamed) {
+              Action(Result(
+                header = ResponseHeader(200, Map.empty),
+                body = HttpEntity.Streamed(Source.single(ByteString("Hello world")), None, Some("text/html"))
+              ))
+            } else {
+              Action(Results.Ok("Hello world!"))
+            }
         }) { ws =>
           handleResponse(await(makeRequest(ws.url("http://localhost:" + testServerPort))))
         }

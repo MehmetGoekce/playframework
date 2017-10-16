@@ -40,26 +40,13 @@ Specifications can be run in either IntelliJ IDEA (using the [Scala plugin](http
 
 Here is a valid specification for Eclipse:
 
-```scala
-package models // this file must be in a directory called "models"
-
-import org.specs2.mutable._
-import org.specs2.runner._
-import org.junit.runner._
-
-@RunWith(classOf[JUnitRunner])
-class ApplicationSpec extends Specification {
-  ...
-}
-```
+@[basic-spec](code/models/UserSpec.scala)
 
 ### Matchers
 
 When you use an example, you must return an example result. Usually, you will see a statement containing a `must`:
 
-```scala
-"Hello world" must endWith("world")
-```
+@[assertion-example](code/models/UserSpec.scala)
 
 The expression that follows the `must` keyword are known as [`matchers`](https://etorreborre.github.io/specs2/guide/SPECS2-3.6.6/org.specs2.guide.Matchers.html). Matchers return an example result, typically Success or Failure.  The example will not compile if it does not return a result.
 
@@ -75,9 +62,7 @@ Mocks are used to isolate unit tests against external dependencies.  For example
 
 To use Mockito, add the following import:
 
-```scala
-import org.specs2.mock._
-```
+@[import-mockito](code/models/UserSpec.scala)
 
 You can mock out references to classes like so:
 
@@ -153,7 +138,7 @@ The [`StubBodyParserFactory`](api/scala/play/api/test/StubBodyParserFactory.html
 
 ## Unit Testing Forms
 
-Forms are also just regular classes, and can unit tested using Play's Test Helpers. Using [`play.api.test.FakeRequest`](api/scala/play/api/test/FakeRequest.html), you can call `form.bindFromRequest` and test for errors against any custom constraints.
+Forms are also just regular classes, and can unit tested using Play's Test Helpers. Using [`FakeRequest`](api/scala/play/api/test/FakeRequest.html), you can call `form.bindFromRequest` and test for errors against any custom constraints.
 
 To unit test form processing and render validation errors, you will want a [`MessagesApi`](api/scala/play/api/i18n/MessagesApi.html) instance in implicit scope.  The default implementation of [`MessagesApi`](api/scala/play/api/i18n/MessagesApi.html) is [`DefaultMessagesApi`](api/scala/play/api/i18n/DefaultMessagesApi.html):
   
@@ -161,11 +146,11 @@ You can test it like:
 
 @[scalatest-exampleformspec](code/specs2/ExampleControllerSpec.scala)
 
-When rendering a template that takes form helpers, you can pass in a Messages the same way, or use `Helpers.stubMessages`:
+When rendering a template that takes form helpers, you can pass in a Messages the same way, or use [`Helpers.stubMessages()`](api/scala/play/api/test/Helpers$.html#stubMessages\(messagesApi:play.api.i18n.MessagesApi,requestHeader:play.api.mvc.RequestHeader\):play.api.i18n.Messages):
 
 @[scalatest-exampletemplatespec](code/specs2/ExampleControllerSpec.scala)
 
-Or, if you are using a form that uses `CSRF.formField` and requires an implicit request, you can use [`MessagesRequest`] in the template and use `Helpers.stubMessagesRequest`:
+Or, if you are using a form that uses `CSRF.formField` and requires an implicit request, you can use [`MessagesRequest`](api/scala/play/api/mvc/MessagesRequest.html) in the template and use [`Helpers.stubMessagesRequest()`](api/scala/play/api/test/Helpers$.html#stubMessagesRequest\(messagesApi:play.api.i18n.MessagesApi,request:play.api.mvc.Request[play.api.mvc.AnyContentAsEmpty.type]\):play.api.mvc.MessagesRequest[play.api.mvc.AnyContentAsEmpty.type]):
 
 @[scalatest-examplecsrftemplatespec](code/specs2/ExampleControllerSpec.scala)
 
@@ -173,6 +158,14 @@ Or, if you are using a form that uses `CSRF.formField` and requires an implicit 
 
 Testing [`Action`](api/scala/play/api/mvc/Action.html) or [`Filter`](api/scala/play/api/mvc/Filter.html) can require to test an [`EssentialAction`](api/scala/play/api/mvc/EssentialAction.html) ([[more information about what an EssentialAction is|ScalaEssentialAction]])
 
-For this, the test [`Helpers.call`](api/scala/play/api/test/Helpers$.html#call) can be used like that:
+For this, the test [`Helpers.call()`](api/scala/play/api/test/Helpers$.html#call[T]\(action:play.api.mvc.EssentialAction,rh:play.api.mvc.RequestHeader,body:T\)\(implicitw:play.api.http.Writeable[T],implicitmat:akka.stream.Materializer\):scala.concurrent.Future[play.api.mvc.Result]) can be used like that:
 
 @[scalatest-exampleessentialactionspec](code/specs2/ExampleEssentialActionSpec.scala)
+
+## Unit Testing Messages
+
+For unit testing purposes, [`DefaultMessagesApi`](api/scala/play/api/i18n/DefaultMessagesApi.html) can be instantiated without arguments, and will take a raw map, so you can test forms and validation failures against custom [`MessagesApi`](api/scala/play/api/i18n/MessagesApi.html):
+
+@[scalatest-examplemessagesspec](code/specs2/ExampleMessagesSpec.scala)
+
+You can also use [`Helpers.stubMessagesApi()`](api/scala/play/api/test/Helpers$.html#stubMessagesApi\(messages:Map[String,Map[String,String]],langs:play.api.i18n.Langs,langCookieName:String,langCookieSecure:Boolean,langCookieHttpOnly:Boolean,httpConfiguration:play.api.http.HttpConfiguration\):play.api.i18n.MessagesApi) in testing to provide a premade empty [`MessagesApi`](api/scala/play/api/i18n/MessagesApi.html).

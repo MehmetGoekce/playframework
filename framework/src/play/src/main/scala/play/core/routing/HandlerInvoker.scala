@@ -11,9 +11,7 @@ import org.apache.commons.lang3.reflect.MethodUtils
 import play.api.http.ActionCompositionConfiguration
 import play.api.mvc._
 import play.api.routing.HandlerDef
-import play.core.j
 import play.core.j._
-import play.i18n.{ Langs, MessagesApi }
 import play.mvc.Http.{ Context, RequestBody }
 
 import scala.compat.java8.{ FutureConverters, OptionConverters }
@@ -121,7 +119,7 @@ object HandlerInvokerFactory {
 
   private[play] def javaBodyParserToScala(parser: play.mvc.BodyParser[_]): BodyParser[RequestBody] = BodyParser { request =>
     import scala.language.existentials
-    val accumulator = parser.apply(new play.core.j.RequestHeaderImpl(request)).asScala()
+    val accumulator = parser.apply(request.asJava).asScala()
     import play.core.Execution.Implicits.trampoline
     accumulator.map { javaEither =>
       if (javaEither.left.isPresent) {
@@ -163,7 +161,7 @@ object HandlerInvokerFactory {
             val callWithContext = {
               try {
                 Context.current.set(javaContext)
-                FutureConverters.toScala(call(new j.RequestHeaderImpl(request)))
+                FutureConverters.toScala(call(request.asJava))
               } finally {
                 Context.current.remove()
               }

@@ -3,26 +3,34 @@
  */
 package javaguide.http;
 
-import play.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import play.ApplicationLoader;
+import play.BuiltInComponentsFromContext;
 import play.cache.AsyncCacheApi;
 import play.cache.Cached;
+import play.cache.ehcache.EhCacheComponents;
+import play.core.j.MappedJavaHandlerComponents;
+import play.filters.components.NoHttpFiltersComponents;
 import play.libs.Json;
 import play.mvc.*;
+import play.routing.Router;
 
 import javax.inject.Inject;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-
 import java.util.concurrent.CompletionStage;
 
 public class JavaActionsComposition extends Controller {
 
+    private static final Logger log = LoggerFactory.getLogger(JavaActionsComposition.class);
+
     // #verbose-action
     public class VerboseAction extends play.mvc.Action.Simple {
         public CompletionStage<Result> call(Http.Context ctx) {
-            Logger.info("Calling action for {}", ctx);
+            log.info("Calling action for {}", ctx);
             return delegate.call(ctx);
         }
     }
@@ -63,7 +71,7 @@ public class JavaActionsComposition extends Controller {
     public class VerboseAnnotationAction extends Action<VerboseAnnotation> {
         public CompletionStage<Result> call(Http.Context ctx) {
             if (configuration.value()) {
-                Logger.info("Calling action for {}", ctx);
+                log.info("Calling action for {}", ctx);
             }
             return delegate.call(ctx);
         }
@@ -125,4 +133,27 @@ public class JavaActionsComposition extends Controller {
     }
     // #action-composition-dependency-injection
 
+    // #action-composition-compile-time-di
+    public class MyComponents extends BuiltInComponentsFromContext
+            implements NoHttpFiltersComponents, EhCacheComponents {
+
+        public MyComponents(ApplicationLoader.Context context) {
+            super(context);
+        }
+
+        @Override
+        public Router router() {
+            return Router.empty();
+        }
+
+        @Override
+        public MappedJavaHandlerComponents javaHandlerComponents() {
+            return super.javaHandlerComponents()
+                    // Add action that does not depends on any other component
+                    .addAction(VerboseAction.class, VerboseAction::new)
+                    // Add action that depends on the cache api
+                    .addAction(MyOwnCachedAction.class, () -> new MyOwnCachedAction(defaultCacheApi()));
+        }
+    }
+    // #action-composition-compile-time-di
 }

@@ -9,7 +9,7 @@ import akka.actor.Cancellable
 import akka.stream.scaladsl.Source
 import akka.stream._
 import akka.util.{ ByteString, Timeout }
-import org.openqa.selenium.{ Cookie => SeleniumCookie, _ }
+import org.openqa.selenium.WebDriver
 import org.openqa.selenium.firefox._
 import org.openqa.selenium.htmlunit._
 import play.api._
@@ -125,7 +125,7 @@ trait PlayRunners extends HttpVerbs {
    * The port to use for a test server. Defaults to 19001. May be configured using the system property
    * testserver.port
    */
-  lazy val testServerPort = Option(System.getProperty("testserver.port")).map(_.toInt).getOrElse(19001)
+  lazy val testServerPort: Int = sys.props.get("testserver.port").map(_.toInt).getOrElse(19001)
 
   /**
    * Constructs a in-memory (h2) database configuration to add to an Application.
@@ -169,6 +169,12 @@ trait Writeables {
 
   implicit def writeableOf_AnyContentAsEmpty(implicit code: Codec): Writeable[AnyContentAsEmpty.type] =
     Writeable(_ => ByteString.empty, None)
+
+  implicit def writeableOf_AnyContentAsMultipartForm(implicit codec: Codec): Writeable[AnyContentAsMultipartFormData] =
+    Writeable.writeableOf_MultipartFormData(codec, None).map(_.mfd)
+
+  implicit def writeableOf_AnyContentAsMultipartForm(contentType: Option[String])(implicit codec: Codec): Writeable[AnyContentAsMultipartFormData] =
+    Writeable.writeableOf_MultipartFormData(codec, contentType).map(_.mfd)
 }
 
 trait DefaultAwaitTimeout {
@@ -383,9 +389,9 @@ trait ResultExtractors {
     Await.result(of.map { result =>
       val cookies = result.newCookies
       new Cookies {
-        lazy val cookiesByName = cookies.groupBy(_.name).mapValues(_.head)
-        override def get(name: String) = cookiesByName.get(name)
-        override def foreach[U](f: Cookie => U) = cookies.foreach(f)
+        lazy val cookiesByName: Map[String, Cookie] = cookies.groupBy(_.name).mapValues(_.head)
+        override def get(name: String): Option[Cookie] = cookiesByName.get(name)
+        override def foreach[U](f: Cookie => U): Unit = cookies.foreach(f)
       }
     }(play.core.Execution.trampoline), timeout.duration)
   }
@@ -468,9 +474,9 @@ trait StubPlayBodyParsersFactory {
    * @param mat the input materializer.
    * @return a minimal PlayBodyParsers for unit testing.
    */
-  def stubPlayBodyParsers(mat: Materializer): PlayBodyParsers = {
+  def stubPlayBodyParsers(implicit mat: Materializer): PlayBodyParsers = {
     val errorHandler = new DefaultHttpErrorHandler(HttpErrorConfig(showDevErrors = false, None), None, None)
-    PlayBodyParsers(ParserConfiguration(), errorHandler, mat, NoTemporaryFileCreator)
+    PlayBodyParsers(NoTemporaryFileCreator, errorHandler)
   }
 
 }
@@ -572,7 +578,7 @@ trait StubControllerComponentsFactory extends StubPlayBodyParsersFactory with St
    * @param messagesApi: the messages api, new DefaultMessagesApi() by default.
    * @param langs the langs instance for messaging, new DefaultLangs() by default.
    * @param fileMimeTypes the mime type associated with file extensions, new DefaultFileMimeTypes(FileMimeTypesConfiguration() by default.
-   * @param executionContent an execution context, defaults to ExecutionContext.global
+   * @param executionContext an execution context, defaults to ExecutionContext.global
    * @return a fully configured ControllerComponents instance.
    */
   def stubControllerComponents(
@@ -581,14 +587,14 @@ trait StubControllerComponentsFactory extends StubPlayBodyParsersFactory with St
     messagesApi: MessagesApi = stubMessagesApi(),
     langs: Langs = stubLangs(),
     fileMimeTypes: FileMimeTypes = new DefaultFileMimeTypes(FileMimeTypesConfiguration()),
-    executionContent: ExecutionContext = ExecutionContext.global): ControllerComponents = {
+    executionContext: ExecutionContext = ExecutionContext.global): ControllerComponents = {
     DefaultControllerComponents(
-      DefaultActionBuilder(bodyParser)(executionContent),
+      DefaultActionBuilder(bodyParser)(executionContext),
       playBodyParsers,
       messagesApi,
       langs,
       fileMimeTypes,
-      executionContent)
+      executionContext)
   }
 }
 
