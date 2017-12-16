@@ -20,8 +20,6 @@ class CometSpec extends Specification {
 
   class MockController(val materializer: Materializer, action: ActionBuilder[Request, AnyContent]) extends ControllerHelpers {
 
-    val Action = action
-
     //#comet-string
     def cometString = action {
       implicit val m = materializer

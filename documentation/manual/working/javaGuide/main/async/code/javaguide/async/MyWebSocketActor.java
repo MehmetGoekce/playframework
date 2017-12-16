@@ -6,7 +6,7 @@ package javaguide.async;
 //#actor
 import akka.actor.*;
 
-public class MyWebSocketActor extends AbstractActor {
+public class MyWebSocketActor extends UntypedAbstractActor {
 
     public static Props props(ActorRef out) {
         return Props.create(MyWebSocketActor.class, out);
@@ -18,13 +18,10 @@ public class MyWebSocketActor extends AbstractActor {
         this.out = out;
     }
 
-    @Override
-    public Receive createReceive() {
-        return receiveBuilder()
-          .match(String.class, message ->
-              out.tell("I received your message: " + message, self())
-            )
-          .build();
+    public void onReceive(Object message) throws Exception {
+        if (message instanceof String) {
+            out.tell("I received your message: " + message, self());
+        }
     }
 }
 //#actor

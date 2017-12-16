@@ -16,25 +16,20 @@ import play.mvc.Http
 class JavaFormHelpers extends PlaySpecification {
 
   "java form helpers" should {
-    def withFormFactory[A](block: play.data.FormFactory => A)(implicit app: Application): A = {
-      val requestBuilder = new Http.RequestBuilder()
-      val components: JavaContextComponents = app.injector.instanceOf[JavaContextComponents]
-      val ctx = new JContext(requestBuilder, components)
-      JContext.current.set(ctx)
-      val formFactory = app.injector.instanceOf[play.data.FormFactory]
-      try block(formFactory) finally JContext.current.set(null)
-    }
     {
       def segment(name: String)(implicit app: Application) = {
-        withFormFactory { formFactory: play.data.FormFactory =>
-          val form = formFactory.form(classOf[User])
-          val u = new UserForm
-          u.setName("foo")
-          u.setEmails(util.Arrays.asList("a@a", "b@b"))
-          val userForm = formFactory.form(classOf[UserForm]).fill(u)
-          val body = html.helpers(form, userForm).body
-          body.lines.dropWhile(_ != "<span class=\"" + name + "\">").drop(1).takeWhile(_ != "</span>").mkString("\n")
-        }
+        val requestBuilder = new Http.RequestBuilder()
+        val components: JavaContextComponents = app.injector.instanceOf[JavaContextComponents]
+        val ctx = new JContext(requestBuilder, components)
+        JContext.current.set(ctx)
+        val formFactory = app.injector.instanceOf[play.data.FormFactory]
+        val form = formFactory.form(classOf[User])
+        val u = new UserForm
+        u.setName("foo")
+        u.setEmails(util.Arrays.asList("a@a", "b@b"))
+        val userForm = formFactory.form(classOf[UserForm]).fill(u)
+        val body = html.helpers(form, userForm).body
+        body.lines.dropWhile(_ != "<span class=\"" + name + "\">").drop(1).takeWhile(_ != "</span>").mkString("\n")
       }
 
       "allow rendering a form" in new WithApplication() {
@@ -64,22 +59,20 @@ class JavaFormHelpers extends PlaySpecification {
 
     {
       "allow rendering input fields" in new WithApplication() {
-        withFormFactory { formFactory: play.data.FormFactory =>
-          val form = formFactory.form(classOf[User])
-          val body = html.fullform(form).body
-          body must contain("""type="text"""")
-          body must contain("""type="password"""")
-          body must contain("""name="email"""")
-          body must contain("""name="password"""")
-        }
+        val formFactory = app.injector.instanceOf[play.data.FormFactory]
+        val form = formFactory.form(classOf[User])
+        val body = html.fullform(form).body
+        body must contain("""type="text"""")
+        body must contain("""type="password"""")
+        body must contain("""name="email"""")
+        body must contain("""name="password"""")
       }
 
       "allow custom field constructors" in new WithApplication() {
-        withFormFactory { formFactory: play.data.FormFactory =>
-          val form = formFactory.form(classOf[User])
-          val body = html.withFieldConstructor(form).body
-          body must contain("foobar")
-        }
+        val formFactory = app.injector.instanceOf[play.data.FormFactory]
+        val form = formFactory.form(classOf[User])
+        val body = html.withFieldConstructor(form).body
+        body must contain("foobar")
       }
 
     }

@@ -2,16 +2,17 @@
 // Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
 //
 
-lazy val root = (project in file("."))
-  .enablePlugins(PlayScala)
-  .enablePlugins(MediatorWorkaroundPlugin)
-  .settings(
-    name := "dist-sample",
-    version := "1.0-SNAPSHOT",
-    libraryDependencies += guice,
-    scalaVersion := sys.props.get("scala.version").getOrElse("2.12.3"),
-    routesGenerator := InjectedRoutesGenerator
-  )
+name := "dist-sample"
+
+version := "1.0-SNAPSHOT"
+
+lazy val root = (project in file(".")).enablePlugins(PlayScala)
+
+libraryDependencies += guice
+
+scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.12.2")
+
+routesGenerator := InjectedRoutesGenerator
 
 val checkStartScript = InputKey[Unit]("checkStartScript")
 

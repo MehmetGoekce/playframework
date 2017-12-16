@@ -3,71 +3,48 @@
  */
 package play.data;
 
-import com.google.common.collect.ImmutableList;
-import org.hibernate.validator.engine.HibernateConstraintViolation;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.MutablePropertyValues;
-import org.springframework.beans.NotReadablePropertyException;
-import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.context.support.DefaultMessageSourceResolvable;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.DataBinder;
-import org.springframework.validation.Errors;
-import org.springframework.validation.FieldError;
-import org.springframework.validation.beanvalidation.SpringValidatorAdapter;
-import play.Logger;
-import play.data.format.Formatters;
-import play.data.validation.Constraints;
-import play.data.validation.Constraints.Validatable;
-import play.data.validation.ValidationError;
+import javax.validation.*;
+import javax.validation.metadata.*;
+import javax.validation.groups.Default;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.lang.annotation.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static java.lang.annotation.ElementType.*;
+import static java.lang.annotation.RetentionPolicy.*;
+
 import play.i18n.Messages;
 import play.i18n.MessagesApi;
 import play.mvc.Http;
 import play.mvc.Http.HttpVerbs;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.groups.Default;
-import javax.validation.metadata.BeanDescriptor;
-import javax.validation.metadata.ConstraintDescriptor;
-import javax.validation.metadata.PropertyDescriptor;
-import java.lang.annotation.Annotation;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import static play.libs.F.*;
 
-import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import static play.libs.F.Tuple;
+import play.data.validation.*;
+import play.data.validation.Constraints.Validatable;
+import play.data.format.Formatters;
+
+import play.Logger;
+
+import org.hibernate.validator.engine.HibernateConstraintViolation;
+
+import org.springframework.beans.*;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.validation.*;
+import org.springframework.validation.beanvalidation.*;
+import org.springframework.context.support.*;
+
+import com.google.common.collect.ImmutableList;
 
 /**
  * Helper to manage HTML form description, submission and validation.
  */
 public class Form<T> {
-
-    /** Statically compiled Pattern for replacing ".<collection element>" to get the field from a violation.  */
-    private static final Pattern REPLACE_COLLECTION_ELEMENT = Pattern.compile(".<collection element>", Pattern.LITERAL);
-
-    /** Statically compiled Pattern for replacing "typeMismatch" in Form errors. */
-    private static final Pattern REPLACE_TYPEMISMATCH = Pattern.compile("typeMismatch", Pattern.LITERAL);
 
     /**
      * Defines a form element's display name.
@@ -414,7 +391,7 @@ public class Form<T> {
 
     @SuppressWarnings("unchecked")
     private void addConstraintViolationToBindingResult(ConstraintViolation<Object> violation, BindingResult result) {
-        String field = REPLACE_COLLECTION_ELEMENT.matcher(violation.getPropertyPath().toString()).replaceAll("");
+        String field = violation.getPropertyPath().toString().replace(".<collection element>", "");
         FieldError fieldError = result.getFieldError(field);
         if (fieldError == null || !fieldError.isBindingFailure()) {
             try {
@@ -471,9 +448,9 @@ public class Form<T> {
                 ImmutableList.Builder<String> builder = ImmutableList.builder();
                 Optional<Messages> msgs = Optional.ofNullable(Http.Context.current.get()).map(Http.Context::messages);
                 for (String code: error.getCodes()) {
-                    code = REPLACE_TYPEMISMATCH.matcher(code).replaceAll(Matcher.quoteReplacement("error.invalid"));
+                    code = code.replace("typeMismatch", "error.invalid");
                     if (!msgs.isPresent() || msgs.get().isDefinedAt(code)) {
-                        builder.add(code);
+                        builder.add( code );
                     }
                 }
                 return new ValidationError(key, builder.build().reverse(),
@@ -501,7 +478,7 @@ public class Form<T> {
         Object globalError = null;
 
         // instances of Validatable have been validated already
-        boolean shouldTryLegacyValidateMethod = result.getTarget() != null && !(result.getTarget() instanceof Validatable);
+        boolean shouldTryLegacyValidateMethod = result.getTarget() != null && !result.getTarget().getClass().isInstance(Validatable.class);
         if (shouldTryLegacyValidateMethod) {
             try {
                 java.lang.reflect.Method v = result.getTarget().getClass().getMethod("validate");
@@ -583,7 +560,7 @@ public class Form<T> {
 
     /**
      * @return the actual form data.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #rawData()} instead which returns an unmodifiable map.
      */
     @Deprecated
@@ -659,7 +636,7 @@ public class Form<T> {
      * Retrieves the first global error (an error without any key), if it exists.
      *
      * @return An error or <code>null</code>.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #getGlobalError()} instead.
      */
     @Deprecated
@@ -680,7 +657,7 @@ public class Form<T> {
      * Returns all errors.
      *
      * @return All errors associated with this form.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #allErrors()} instead.
      */
     @Deprecated
@@ -711,7 +688,7 @@ public class Form<T> {
     /**
      * @param key    the field name associated with the error.
      * @return an error by key, or null.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #getError(String)} instead.
      */
     @Deprecated
@@ -745,9 +722,7 @@ public class Form<T> {
             if (error != null) {
                 final List<String> messages = new ArrayList<>();
                 if (messagesApi != null && lang != null) {
-                    final List<String> reversedMessages = new ArrayList<>(error.messages());
-                    Collections.reverse(reversedMessages);
-                    messages.add(messagesApi.get(lang, reversedMessages, translateMsgArg(error.arguments(), messagesApi, lang)));
+                    messages.add(messagesApi.get(lang, error.messages(), translateMsgArg(error.arguments(), messagesApi, lang)));
                 } else {
                     messages.add(error.message());
                 }
@@ -792,7 +767,7 @@ public class Form<T> {
      * Adds an error to this form.
      *
      * @param error the <code>ValidationError</code> to add.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #withError(ValidationError)} instead.
      */
     @Deprecated
@@ -805,7 +780,7 @@ public class Form<T> {
 
     /**
      * @param error the <code>ValidationError</code> to add to the returned form.
-     *
+     * 
      * @return a copy of this form with the given error added.
      */
     public Form<T> withError(final ValidationError error) {
@@ -823,7 +798,7 @@ public class Form<T> {
      * @param key the error key
      * @param error the error message
      * @param args the error arguments
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #withError(String, String, List)} instead.
      */
     @Deprecated
@@ -835,7 +810,7 @@ public class Form<T> {
      * @param key the error key
      * @param error the error message
      * @param args the error arguments
-     *
+     * 
      * @return a copy of this form with the given error added.
      */
     public Form<T> withError(final String key, final String error, final List<Object> args) {
@@ -847,7 +822,7 @@ public class Form<T> {
      *
      * @param key the error key
      * @param error the error message
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #withError(String, String)} instead.
      */
     @Deprecated
@@ -858,7 +833,7 @@ public class Form<T> {
     /**
      * @param key the error key
      * @param error the error message
-     *
+     * 
      * @return a copy of this form with the given error added.
      */
     public Form<T> withError(final String key, final String error) {
@@ -870,7 +845,7 @@ public class Form<T> {
      *
      * @param error the error message
      * @param args the error arguments
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #withGlobalError(String, List)} instead.
      */
     @Deprecated
@@ -881,7 +856,7 @@ public class Form<T> {
     /**
      * @param error the global error message
      * @param args the global error arguments
-     *
+     * 
      * @return a copy of this form with the given global error added.
      */
     public Form<T> withGlobalError(final String error, final List<Object> args) {
@@ -892,7 +867,7 @@ public class Form<T> {
      * Adds a global error to this form.
      *
      * @param error the error message.
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #withGlobalError(String)} instead.
      */
     @Deprecated
@@ -902,7 +877,7 @@ public class Form<T> {
 
     /**
      * @param error the global error message
-     *
+     * 
      * @return a copy of this form with the given global error added.
      */
     public Form<T> withGlobalError(final String error) {
@@ -911,7 +886,7 @@ public class Form<T> {
 
     /**
      * Discards errors of this form
-     *
+     * 
      * @deprecated Deprecated as of 2.6.0. Use {@link #discardingErrors()} instead.
      */
     @Deprecated
@@ -1097,7 +1072,7 @@ public class Form<T> {
          * Returns the field name.
          *
          * @return The field name.
-         *
+         * 
          * @deprecated Deprecated as of 2.6.0. Use {@link #getName()} instead.
          */
         @Deprecated
@@ -1116,7 +1091,7 @@ public class Form<T> {
          * Returns the field value, if defined.
          *
          * @return The field value, if defined.
-         *
+         * 
          * @deprecated Deprecated as of 2.6.0. Use {@link #getValue()} instead.
          */
         @Deprecated

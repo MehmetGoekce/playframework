@@ -20,18 +20,14 @@ import java.util.concurrent.CompletableFuture;
 
 public class JavaWebSockets {
 
-    public static class Actor1 extends AbstractActor {
+    public static class Actor1 extends UntypedAbstractActor {
         private final Closeable someResource;
 
         public Actor1(Closeable someResource) {
             this.someResource = someResource;
         }
 
-        @Override
-        public Receive createReceive() {
-            return receiveBuilder()
-              // match() messages here...
-              .build();
+        public void onReceive(Object message) throws Exception {
         }
 
         //#actor-post-stop
@@ -41,12 +37,8 @@ public class JavaWebSockets {
         //#actor-post-stop
     }
 
-    public static class Actor2 extends AbstractActor {
-        @Override
-        public Receive createReceive() {
-            return receiveBuilder()
-              // match() messages here
-              .build();
+    public static class Actor2 extends UntypedAbstractActor {
+        public void onReceive(Object message) throws Exception {
         }
 
         {

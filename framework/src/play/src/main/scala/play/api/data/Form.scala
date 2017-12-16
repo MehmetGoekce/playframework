@@ -38,20 +38,18 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
   /**
    * Constraints associated with this form, indexed by field name.
    */
-  val constraints: Map[String, Seq[(String, Seq[Any])]] =
-    mapping.mappings.collect {
-      case m if m.constraints.nonEmpty => m.key -> m.constraints.collect {
-        case Constraint(Some(name), args) => name -> args
-      }
-    }(scala.collection.breakOut)
+  val constraints: Map[String, Seq[(String, Seq[Any])]] = mapping.mappings.map { m =>
+    m.key -> m.constraints.collect { case Constraint(Some(name), args) => name -> args }
+  }.filterNot(_._2.isEmpty).toMap
 
   /**
    * Formats associated to this form, indexed by field name. *
    */
-  val formats: Map[String, (String, Seq[Any])] =
-    mapping.mappings.flatMap { m =>
-      m.format.map { fmt => m.key -> fmt }
-    }(scala.collection.breakOut)
+  val formats: Map[String, (String, Seq[Any])] = mapping.mappings.map { m =>
+    m.key -> m.format
+  }.collect {
+    case (k, Some(f)) => k -> f
+  }.toMap
 
   /**
    * Binds data to this form, i.e. handles form submission.
@@ -84,10 +82,6 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
         case body: play.api.mvc.AnyContent if body.asJson.isDefined => FormUtils.fromJson(js = body.asJson.get).mapValues(Seq(_))
         case body: Map[_, _] => body.asInstanceOf[Map[String, Seq[String]]]
         case body: play.api.mvc.MultipartFormData[_] => body.asFormUrlEncoded
-        case body: Either[_, play.api.mvc.MultipartFormData[_]] => body match {
-          case Right(b) => b.asFormUrlEncoded
-          case Left(_) => Map.empty[String, Seq[String]]
-        }
         case body: play.api.libs.json.JsValue => FormUtils.fromJson(js = body).mapValues(Seq(_))
         case _ => Map.empty[String, Seq[String]]
       }) ++ (if (!request.method.equalsIgnoreCase(HttpVerbs.POST) && !request.method.equalsIgnoreCase(HttpVerbs.PUT) && !request.method.equalsIgnoreCase(HttpVerbs.PATCH)) { request.queryString } else { Nil })
@@ -161,7 +155,7 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
   def apply(key: String): Field = Field(
     this,
     key,
-    constraints.getOrElse(key, Nil),
+    constraints.get(key).getOrElse(Nil),
     formats.get(key),
     errors.collect { case e if e.key == key => e },
     data.get(key))
@@ -199,7 +193,7 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
   /**
    * Returns `true` if there is an error related to this form.
    */
-  def hasErrors: Boolean = errors.nonEmpty
+  def hasErrors: Boolean = !errors.isEmpty
 
   /**
    * Retrieve the first error for this key.
@@ -218,7 +212,7 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
   /**
    * Returns `true` if there is a global error related to this form.
    */
-  def hasGlobalErrors: Boolean = globalErrors.nonEmpty
+  def hasGlobalErrors: Boolean = !globalErrors.isEmpty
 
   /**
    * Returns the concrete value, if the submission was a success.
@@ -307,7 +301,7 @@ case class Field(private val form: Form[_], name: String, constraints: Seq[(Stri
   /**
    * Check if this field has errors.
    */
-  lazy val hasErrors: Boolean = errors.nonEmpty
+  lazy val hasErrors: Boolean = !errors.isEmpty
 
   /**
    * Retrieve a field from the same form, using a key relative to this field key.
@@ -578,7 +572,7 @@ trait Mapping[T] {
 
   protected def collectErrors(t: T): Seq[FormError] = {
     constraints.map(_(t)).collect {
-      case Invalid(errors) => errors
+      case Invalid(errors) => errors.toSeq
     }.flatten.map(ve => FormError(key, ve.messages, ve.args))
   }
 

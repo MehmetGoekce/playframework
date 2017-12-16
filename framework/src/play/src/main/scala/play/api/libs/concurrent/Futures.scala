@@ -5,7 +5,6 @@ package play.api.libs.concurrent
 
 import javax.inject.Inject
 
-import akka.Done
 import akka.actor.ActorSystem
 
 import scala.concurrent.duration.FiniteDuration
@@ -74,17 +73,6 @@ trait Futures {
    */
   def delayed[A](duration: FiniteDuration)(f: => Future[A]): Future[A]
 
-  /**
-   * Creates a delayed future that is used as a supplier to other futures.
-   *
-   * {{{
-   * val future: Future[String] = futures.delay(1 second).map(_ => "hello world!")
-   * }}}
-   * @param duration
-   * @return a future completed successfully after a delay of duration.
-   */
-  def delay(duration: FiniteDuration): Future[Done]
-
 }
 
 /**
@@ -107,12 +95,6 @@ class DefaultFutures @Inject() (actorSystem: ActorSystem) extends Futures {
     implicit val ec = actorSystem.dispatcher
     akka.pattern.after(duration, actorSystem.scheduler)(f)
   }
-
-  override def delay(duration: FiniteDuration): Future[Done] = {
-    implicit val ec = actorSystem.dispatcher
-    akka.pattern.after(duration, actorSystem.scheduler)(Future.successful(akka.Done))
-  }
-
 }
 
 /**
@@ -183,21 +165,9 @@ trait LowPriorityFuturesImplicits {
      *
      * @param duration the duration after which the future should be executed.
      * @param futures the implicit Futures.
-     * @return the future delayed by the specified duration.
+     * @return the future that completes first, either the failed future, or the operation.
      */
-    @deprecated("Use future.withDelay(duration) or futures.delayed(duration)(future)", "2.6.6")
     def withDelay[A](duration: FiniteDuration)(future: Future[A])(implicit futures: Futures): Future[A] = {
-      futures.delayed(duration)(future)
-    }
-
-    /**
-     * Creates a future which will be executed after the given delay.
-     *
-     * @param duration the duration after which the future should be executed.
-     * @param futures the implicit Futures.
-     * @return the future delayed by the specified duration.
-     */
-    def withDelay(duration: FiniteDuration)(implicit futures: Futures): Future[T] = {
       futures.delayed(duration)(future)
     }
   }

@@ -12,22 +12,23 @@ import akka.http.play.WebSocketHandler
 import akka.http.scaladsl.model.{ headers, _ }
 import akka.http.scaladsl.model.headers.Expect
 import akka.http.scaladsl.model.ws.UpgradeToWebSocket
-import akka.http.scaladsl.settings.{ ParserSettings, ServerSettings }
+import akka.http.scaladsl.settings.ServerSettings
 import akka.http.scaladsl.util.FastFuture._
 import akka.http.scaladsl.{ ConnectionContext, Http }
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import akka.util.ByteString
-import com.typesafe.config.{ Config, ConfigMemorySize }
+import com.typesafe.config.{ ConfigFactory, ConfigMemorySize }
 import play.api._
-import play.api.http.{ DefaultHttpErrorHandler, HttpErrorHandler }
+import play.api.http.{ DefaultHttpErrorHandler, HttpConfiguration, HttpErrorHandler }
+import play.api.inject.DefaultApplicationLifecycle
 import play.api.libs.streams.Accumulator
 import play.api.mvc._
 import play.api.routing.Router
 import play.core.server.akkahttp.{ AkkaModelConversion, HttpRequestDecoder }
-import play.core.server.common.{ ReloadCache, ServerResultUtils }
+import play.core.server.common.{ ForwardedHeaderHandler, ServerResultUtils }
 import play.core.server.ssl.ServerSSLEngine
-import play.core.ApplicationProvider
+import play.core.{ ApplicationProvider, DefaultWebCommands, SourceMapper, WebCommands }
 import play.server.SSLEngineProvider
 
 import scala.concurrent.duration._
@@ -50,22 +51,15 @@ class AkkaHttpServer(
   assert(config.port.isDefined || config.sslPort.isDefined, "AkkaHttpServer must be given at least one of an HTTP and an HTTPS port")
 
   private val serverConfig = config.configuration.get[Configuration]("play.server")
-  private val akkaServerConfig = config.configuration.get[Configuration]("play.server.akka")
+  private val akkaConfig = serverConfig.get[Configuration]("akka")
 
-  override def mode: Mode = config.mode
+  def mode = config.mode
 
   // Remember that some user config may not be available in development mode due to its unusual ClassLoader.
   implicit private val system: ActorSystem = actorSystem
   implicit private val mat: Materializer = materializer
 
-  private val http2Enabled: Boolean = akkaServerConfig.getOptional[Boolean]("http2.enabled") getOrElse false
-
-  private def getPossiblyInfiniteBytes(config: Config, path: String): Long = {
-    config.getString(path) match {
-      case "infinite" => Long.MaxValue
-      case x => config.getBytes(path)
-    }
-  }
+  private val http2Enabled: Boolean = akkaConfig.getOptional[Boolean]("http2.enabled") getOrElse false
 
   private def createServerBinding(port: Int, connectionContext: ConnectionContext, secure: Boolean): Http.ServerBinding = {
     // Listen for incoming connections and handle them with the `handleRequest` method.
@@ -73,31 +67,23 @@ class AkkaHttpServer(
     val initialConfig = (Configuration(system.settings.config) ++ Configuration(
       "akka.http.server.preview.enable-http2" -> http2Enabled
     )).underlying
-
-    val parserSettings = ParserSettings(initialConfig)
-      .withMaxContentLength(getPossiblyInfiniteBytes(akkaServerConfig.underlying, "max-content-length"))
-
     val initialSettings = ServerSettings(initialConfig)
 
     val idleTimeout = serverConfig.get[Duration](if (secure) "https.idleTimeout" else "http.idleTimeout")
-    val requestTimeoutOption = akkaServerConfig.getOptional[Duration]("requestTimeout")
+    val requestTimeoutOption = akkaConfig.getOptional[Duration]("requestTimeout")
 
     // all akka settings that are applied to the server needs to be set here
     val serverSettings: ServerSettings = initialSettings.withTimeouts {
       val timeouts = initialSettings.timeouts.withIdleTimeout(idleTimeout)
-      requestTimeoutOption match {
-        case Some(requestTimeout) => timeouts.withRequestTimeout(requestTimeout)
-        case None => timeouts
-      }
+      requestTimeoutOption.foreach(timeouts.withRequestTimeout)
+      timeouts
     }
-      // Play needs these headers to fill in fields in its request model
+      // Play needs Raw Request Uri's to match Netty
       .withRawRequestUriHeader(true)
       .withRemoteAddressHeader(true)
-      // Disable Akka-HTTP's transparent HEAD handling. so that play's HEAD handling can take action
-      .withTransparentHeadRequests(akkaServerConfig.get[Boolean]("transparent-head-requests"))
-      .withServerHeader(akkaServerConfig.getOptional[String]("server-header").filterNot(_ == "").map(headers.Server(_)))
-      .withDefaultHostHeader(headers.Host(akkaServerConfig.get[String]("default-host-header")))
-      .withParserSettings(parserSettings)
+      .withTransparentHeadRequests(akkaConfig.get[Boolean]("transparent-head-requests"))
+      .withServerHeader(akkaConfig.getOptional[String]("server-header").filterNot(_ == "").map(headers.Server(_)))
+      .withDefaultHostHeader(headers.Host(akkaConfig.get[String]("default-host-header")))
 
     // TODO: pass in Inet.SocketOption and LoggerAdapter params?
     val bindingFuture: Future[Http.ServerBinding] = try {
@@ -115,7 +101,7 @@ class AkkaHttpServer(
             "Add .enablePlugins(PlayAkkaHttp2Support) in build.sbt", e)
     }
 
-    val bindTimeout = akkaServerConfig.get[FiniteDuration]("bindTimeout")
+    val bindTimeout = akkaConfig.get[FiniteDuration]("bindTimeout")
     Await.result(bindingFuture, bindTimeout)
   }
 
@@ -153,34 +139,24 @@ class AkkaHttpServer(
   // Each request needs an id
   private val requestIDs = new java.util.concurrent.atomic.AtomicLong(0)
 
-  /**
-   * Values that are cached based on the current application.
-   */
-  private case class ReloadCacheValues(
-    resultUtils: ServerResultUtils,
-    modelConversion: AkkaModelConversion
-  )
+  // TODO: We can change this to an eager val when we fully support server configuration
+  // instead of reading from the application configuration. At the moment we need to wait
+  // until we have an Application available before we can read any configuration. :(
 
-  /**
-   * A helper to cache values that are derived from the current application.
-   */
-  private val reloadCache = new ReloadCache[ReloadCacheValues] {
-    override protected def reloadValue(tryApp: Try[Application]): ReloadCacheValues = {
-      val serverResultUtils = reloadServerResultUtils(tryApp)
-      val forwardedHeaderHandler = reloadForwardedHeaderHandler(tryApp)
-      val illegalResponseHeaderValue = ParserSettings.IllegalResponseHeaderValueProcessingMode(akkaServerConfig.get[String]("illegal-response-header-value-processing-mode"))
-      val modelConversion = new AkkaModelConversion(serverResultUtils, forwardedHeaderHandler, illegalResponseHeaderValue)
-      ReloadCacheValues(
-        resultUtils = serverResultUtils,
-        modelConversion = modelConversion
-      )
+  private lazy val resultUtils: ServerResultUtils = {
+    val httpConfiguration = applicationProvider.get match {
+      case Success(app) => HttpConfiguration.fromConfiguration(app.configuration, app.environment)
+      case Failure(_) => HttpConfiguration()
     }
+    new ServerResultUtils(httpConfiguration)
   }
 
-  private def resultUtils: ServerResultUtils =
-    reloadCache.cachedFrom(applicationProvider.get).resultUtils
-  private def modelConversion: AkkaModelConversion =
-    reloadCache.cachedFrom(applicationProvider.get).modelConversion
+  private lazy val modelConversion: AkkaModelConversion = {
+    val configuration: Option[Configuration] = applicationProvider.get.toOption.map(_.configuration)
+    val forwardedHeaderHandler = new ForwardedHeaderHandler(
+      ForwardedHeaderHandler.ForwardedHeaderHandlerConfig(configuration))
+    new AkkaModelConversion(resultUtils, forwardedHeaderHandler)
+  }
 
   private def handleRequest(request: HttpRequest, secure: Boolean): Future[HttpResponse] = {
     val remoteAddress: InetSocketAddress = remoteAddressOfRequest(request)
@@ -347,9 +323,9 @@ class AkkaHttpServer(
     httpServerBinding.orElse(httpsServerBinding).map(_.localAddress).get
   }
 
-  override def httpPort: Option[Int] = httpServerBinding.map(_.localAddress.getPort)
+  def httpPort = httpServerBinding.map(_.localAddress.getPort)
 
-  override def httpsPort: Option[Int] = httpsServerBinding.map(_.localAddress.getPort)
+  def httpsPort = httpsServerBinding.map(_.localAddress.getPort)
 
   /**
    * There is a mismatch between the Play SSL API and the Akka IO SSL API, Akka IO takes an SSL context, and
@@ -376,34 +352,7 @@ class AkkaHttpServer(
   }
 }
 
-/**
- * Creates an AkkaHttpServer from the given router:
- *
- * {{{
- *   val server = AkkaHttpServer.fromRouter(ServerConfig(port = Some(9002))) {
- *     case GET(p"/") => Action {
- *       Results.Ok("Hello")
- *     }
- *   }
- * }}}
- *
- * Or from a given router using [[BuiltInComponents]]:
- *
- * {{{
- *   val server = AkkaHttpServer.fromRouterWithComponents(ServerConfig(port = Some(9002))) { components =>
- *     import play.api.mvc.Results._
- *     import components.{ defaultActionBuilder => Action }
- *     {
- *       case GET(p"/") => Action {
- *         Ok("Hello")
- *       }
- *     }
- *   }
- * }}}
- *
- * Use this together with <a href="https://www.playframework.com/documentation/2.6.x/ScalaSirdRouter">Sird Router</a>.
- */
-object AkkaHttpServer extends ServerFromRouter {
+object AkkaHttpServer {
 
   private val logger = Logger(classOf[AkkaHttpServer])
 
@@ -424,10 +373,10 @@ object AkkaHttpServer extends ServerFromRouter {
       application.materializer, () => Future.successful(()))
   }
 
-  override protected def createServerFromRouter(serverConf: ServerConfig = ServerConfig())(routes: ServerComponents with BuiltInComponents => Router): Server = {
+  def fromRouter(config: ServerConfig = ServerConfig())(routes: PartialFunction[RequestHeader, Handler]): AkkaHttpServer = {
     new AkkaHttpServerComponents with BuiltInComponents with NoHttpFiltersComponents {
-      override lazy val serverConfig: ServerConfig = serverConf
-      override def router: Router = routes(this)
+      override lazy val serverConfig: ServerConfig = config
+      lazy val router: Router = Router.from(routes)
     }.server
   }
 }
@@ -441,10 +390,8 @@ class AkkaHttpServerProvider extends ServerProvider {
       context.stopHook)
 }
 
-/**
- * Components for building a simple Akka HTTP Server.
- */
-trait AkkaHttpServerComponents extends ServerComponents {
+trait AkkaHttpServerComponents {
+  lazy val serverConfig: ServerConfig = ServerConfig()
   lazy val server: AkkaHttpServer = {
     // Start the application first
     Play.start(application)
@@ -452,5 +399,16 @@ trait AkkaHttpServerComponents extends ServerComponents {
       application.materializer, serverStopHook)
   }
 
+  lazy val environment: Environment = Environment.simple(mode = serverConfig.mode)
+  lazy val sourceMapper: Option[SourceMapper] = None
+  lazy val webCommands: WebCommands = new DefaultWebCommands
+  lazy val configuration: Configuration = Configuration(ConfigFactory.load())
+  lazy val applicationLifecycle: DefaultApplicationLifecycle = new DefaultApplicationLifecycle
+
   def application: Application
+
+  /**
+   * Called when Server.stop is called.
+   */
+  def serverStopHook: () => Future[Unit] = () => Future.successful(())
 }

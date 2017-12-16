@@ -40,9 +40,4 @@ object RequestAttrKey {
    */
   @deprecated("Use attributes instead of tags", "2.6.0")
   val Tags = TypedKey[Map[String, String]]("Tags")
-
-  /**
-   * The key for the request attribute storing the server name.
-   */
-  val Server = TypedKey[String]("Server-Name")
 }

@@ -151,11 +151,16 @@ database.dispatcher {
 
 There are several ways to retrieve a JDBC connection. The following code show you a JDBC example very simple, working with MySQL 5.*:
 
-@[inject-controller](code/ScalaControllerInject.scala)
+@[](code/ScalaControllerInject.scala)
 
 But of course you need to call `close()` at some point on the opened connection to return it to the connection pool. Another way is to let Play manage closing the connection for you:
 
-@[access-default-database](code/ScalaControllerInject.scala)
+```scala
+// access "default" database
+db.withConnection { conn =>
+  // do whatever you need with the connection
+}
+```
 
 The connection will be automatically closed at the end of the block.
 
@@ -163,11 +168,15 @@ The connection will be automatically closed at the end of the block.
 
 A variant is to set the connection's auto-commit to `false` and to manage a transaction for the block:
 
-@[access-db-connection](code/ScalaControllerInject.scala)
+```scala
+db.withTransaction { conn =>
+  // do whatever you need with the connection
+}
+```
 
 For a database other than the default:
 
-@[named-database](code/ScalaInjectNamed.scala)
+@[](code/ScalaInjectNamed.scala)
 
 ## Selecting and configuring the connection pool
 

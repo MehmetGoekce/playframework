@@ -3,31 +3,31 @@
  */
 package javaguide.di.guice.configured;
 
+import com.typesafe.config.Config;
 import javaguide.di.*;
 
 //#dynamic-guice-module
 import com.google.inject.AbstractModule;
 import com.google.inject.name.Names;
-import com.typesafe.config.Config;
 import play.Environment;
 
 public class Module extends AbstractModule {
 
     private final Environment environment;
-    private final Config config;
+    private final Config configuration;
 
     public Module(
           Environment environment,
-          Config config) {
+          Config configuration) {
         this.environment = environment;
-        this.config = config;
+        this.configuration = configuration;
     }
 
     protected void configure() {
         // Expect configuration like:
         // hello.en = "myapp.EnglishHello"
         // hello.de = "myapp.GermanHello"
-        final Config helloConf = config.getConfig("hello");
+        final Config helloConf = configuration.getConfig("hello");
         // Iterate through all the languages and bind the
         // class associated with that language. Use Play's
         // ClassLoader to load the classes.

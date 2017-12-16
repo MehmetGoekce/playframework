@@ -26,8 +26,7 @@ public interface Timeout {
      * the given completion stage will still complete, even though that completed value
      * is not returned.
      *
-     * @param <A> the type in the completion stage
-     * @param stage the completion stage that should be wrapped with a timeout.
+     * @param <A> the completion stage that should be wrapped with a timeout.
      * @param delay The delay (expressed with the corresponding unit).
      * @param unit The time Unit.
      * @return either the completed future, or a completion stage that failed with timeout.
@@ -43,9 +42,8 @@ public interface Timeout {
     /**
      * An alias for timeout(stage, delay, unit) that uses a java.time.Duration.
      *
-     * @param stage the completion stage that should be wrapped with a future.
+     * @param <A> the completion stage that should be wrapped with a future.
      * @param delay The delay (expressed with the corresponding unit).
-     * @param <A> the type in the completion stage
      * @return the completion stage, or a completion stage that failed with timeout.
      */
     default <A> CompletionStage<A> timeout(final CompletionStage<A> stage, final Duration delay) {

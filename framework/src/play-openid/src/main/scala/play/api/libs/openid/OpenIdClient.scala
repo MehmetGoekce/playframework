@@ -6,7 +6,6 @@ package play.api.libs.openid
 import java.net._
 import javax.inject.{ Inject, Singleton }
 
-import akka.util.ByteString
 import play.api.http.HeaderNames
 import play.api.inject._
 import play.api.libs.ws._
@@ -15,7 +14,7 @@ import play.api.mvc.RequestHeader
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.control.Exception._
 import scala.util.matching.Regex
-import scala.xml.{ Elem, Node }
+import scala.xml.Node
 
 case class OpenIDServer(protocolVersion: String, url: String, delegate: Option[String])
 
@@ -81,7 +80,7 @@ trait OpenIdClient {
 }
 
 @Singleton
-class WsOpenIdClient @Inject() (ws: WSClient, discovery: Discovery)(implicit ec: ExecutionContext) extends OpenIdClient with WSBodyWritables {
+class WsOpenIdClient @Inject() (ws: WSClient, discovery: Discovery)(implicit ec: ExecutionContext) extends OpenIdClient {
 
   /**
    * Retrieve the URL where the user should be redirected to start the OpenID authentication process
@@ -143,7 +142,7 @@ class WsOpenIdClient @Inject() (ws: WSClient, discovery: Discovery)(implicit ec:
    * Perform direct verification (see 11.4.2. Verifying Directly with the OpenID Provider)
    */
   private def directVerification(queryString: Map[String, Seq[String]])(server: OpenIDServer) = {
-    val fields: Map[String, Seq[String]] = (queryString - "openid.mode" + ("openid.mode" -> Seq("check_authentication")))
+    val fields = (queryString - "openid.mode" + ("openid.mode" -> Seq("check_authentication")))
     ws.url(server.url).post(fields).map(response => {
       if (response.status == 200 && response.body.contains("is_valid:true")) {
         UserInfo(queryString)

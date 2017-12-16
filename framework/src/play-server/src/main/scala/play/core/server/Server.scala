@@ -13,8 +13,9 @@ import play.api.routing.Router
 import scala.language.postfixOps
 import play.api._
 import play.api.mvc._
-import play.core.{ ApplicationProvider, DefaultWebCommands, SourceMapper, WebCommands }
-import play.api.inject.{ ApplicationLifecycle, DefaultApplicationLifecycle }
+import play.core.{ ApplicationProvider, DefaultWebCommands }
+import play.api.inject.DefaultApplicationLifecycle
+
 import play.routing.{ Router => JRouter }
 import play.{ ApplicationLoader => JApplicationLoader }
 import play.{ BuiltInComponents => JBuiltInComponents }
@@ -201,7 +202,7 @@ object Server {
    *
    * {{{
    *   Server.withApplicationFromContext(ServerConfig(mode = Mode.Prod, port = Some(0))) { context =>
-   *     new BuiltInComponentsFromContext(context) with AssetsComponents with play.filters.HttpFiltersComponents {
+   *     new BuiltInComponentsFromContext(context) with AssetsComponents {
    *      override def router: Router = Router.from {
    *        case req => assets.versioned("/testassets", req.path)
    *      }
@@ -227,54 +228,6 @@ object Server {
 
 }
 
-/**
- * Components to create a Server instance.
- */
-trait ServerComponents {
-
-  def server: Server
-
-  lazy val serverConfig: ServerConfig = ServerConfig()
-
-  lazy val environment: Environment = Environment.simple(mode = serverConfig.mode)
-  lazy val sourceMapper: Option[SourceMapper] = None
-  lazy val webCommands: WebCommands = new DefaultWebCommands
-  lazy val configuration: Configuration = Configuration(ConfigFactory.load())
-  lazy val applicationLifecycle: ApplicationLifecycle = new DefaultApplicationLifecycle
-
-  def serverStopHook: () => Future[Unit] = () => Future.successful(())
-}
-
-/**
- * Define how to create a Server from a Router.
- */
-private[server] trait ServerFromRouter {
-
-  protected def createServerFromRouter(serverConfig: ServerConfig = ServerConfig())(routes: ServerComponents with BuiltInComponents => Router): Server
-
-  /**
-   * Creates a [[Server]] from the given router.
-   *
-   * @param config the server configuration
-   * @param routes the routes definitions
-   * @return an AkkaHttpServer instance
-   */
-  def fromRouter(config: ServerConfig = ServerConfig())(routes: PartialFunction[RequestHeader, Handler]): Server = {
-    createServerFromRouter(config) { _ => Router.from(routes) }
-  }
-
-  /**
-   * Creates a [[Server]] from the given router, using [[ServerComponents]].
-   *
-   * @param config the server configuration
-   * @param routes the routes definitions
-   * @return an AkkaHttpServer instance
-   */
-  def fromRouterWithComponents(config: ServerConfig = ServerConfig())(routes: BuiltInComponents => PartialFunction[RequestHeader, Handler]): Server = {
-    createServerFromRouter(config)(components => Router.from(routes(components)))
-  }
-}
-
 private[play] object JavaServerHelper {
   def forRouter(router: JRouter, mode: Mode, httpPort: Option[Integer], sslPort: Option[Integer]): Server = {
     forRouter(mode, httpPort, sslPort)(new JFunction[JBuiltInComponents, JRouter] {
@@ -286,7 +239,7 @@ private[play] object JavaServerHelper {
     val context = JApplicationLoader.create(Environment.simple(mode = mode).asJava)
     val application = new JBuiltInComponentsFromContext(context) {
       override def router: JRouter = block.apply(this)
-      override def httpFilters(): java.util.List[play.mvc.EssentialFilter] = java.util.Collections.emptyList()
+      override def httpFilters(): Array[play.mvc.EssentialFilter] = Array.empty[play.mvc.EssentialFilter]
     }.application.asScala()
     Play.start(application)
     val serverConfig = ServerConfig(mode = mode, port = httpPort.map(_.intValue), sslPort = sslPort.map(_.intValue))

@@ -8,13 +8,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import javax.inject.Inject;
 import akka.stream.Materializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import play.Logger;
 import play.mvc.*;
 
 public class LoggingFilter extends Filter {
-
-    private static final Logger log = LoggerFactory.getLogger(LoggingFilter.class);
 
     @Inject
     public LoggingFilter(Materializer mat) {
@@ -30,7 +27,7 @@ public class LoggingFilter extends Filter {
             long endTime = System.currentTimeMillis();
             long requestTime = endTime - startTime;
 
-            log.info("{} {} took {}ms and returned {}",
+            Logger.info("{} {} took {}ms and returned {}",
                 requestHeader.method(), requestHeader.uri(), requestTime, result.status());
 
             return result.withHeader("Request-Time", "" + requestTime);

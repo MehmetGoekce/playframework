@@ -5,6 +5,7 @@ package play.mvc;
 
 import akka.stream.Materializer;
 import play.core.j.AbstractFilter;
+import play.core.j.RequestHeaderImpl;
 import play.mvc.Http.RequestHeader;
 import scala.Function1;
 import scala.compat.java8.FutureConverters;
@@ -38,7 +39,7 @@ public abstract class Filter extends EssentialFilter {
                 return FutureConverters.toScala(
                         Filter.this.apply(
                                 (rh) -> FutureConverters.toJava(next.apply(rh.asScala())).thenApply(play.api.mvc.Result::asJava),
-                                requestHeader.asJava()
+                                new RequestHeaderImpl(requestHeader)
                         ).thenApply(Result::asScala)
                 );
             }

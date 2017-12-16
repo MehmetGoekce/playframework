@@ -3,7 +3,8 @@
  */
 package play.core.j
 
-import play.mvc.{ ResponseHeader => JResponseHeader }
+import play.mvc.Http.{ Cookie => JCookie, Cookies => JCookies, Flash => JFlash, Session => JSession }
+import play.mvc.{ ResponseHeader => JResponseHeader, Result => JResult }
 
 import scala.annotation.varargs
 import scala.collection.JavaConverters

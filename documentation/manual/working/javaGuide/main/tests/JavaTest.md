@@ -47,13 +47,7 @@ Some developers prefer to write their assertions in a more fluent style than JUn
 
 Mocks are used to isolate unit tests against external dependencies. For example, if your class under test depends on an external data access class, you can mock this to provide controlled data and eliminate the need for an external data resource.
 
-The [Mockito](https://github.com/mockito/mockito) library is a popular mocking framework for Java.  To use it in your tests add a dependency on the `mockito-core` artifact to your `build.sbt` file.  For example:
-
-```scala
-libraryDependencies += "org.mockito" % "mockito-core" % "2.10.0" % "test"
-```
-
-You can find the current version number of `mockito-core` [here](https://mvnrepository.com/artifact/org.mockito/mockito-core).
+The [Mockito](https://github.com/mockito/mockito) library is included in your project build to assist you in using mocks.
 
 Using Mockito, you can mock classes or interfaces like so:
 
@@ -91,12 +85,6 @@ You can test your controllers using Play's [test helpers](api/java/play/test/Hel
 
 ## Unit testing view templates
 
-As a template is a standard Scala method, you can execute it from a test and check the result:
+As a template is a standard Scala function, you can execute it from a test and check the result:
 
 @[test-template](code/javaguide/tests/ControllerTest.java)
-
-## Unit testing with Messages
-
-If you need a `play.i18n.MessagesApi` instance for unit testing, you can use [`play.test.Helpers.stubMessagesApi()`](api/java/play/test/Helpers.html#stubMessagesApi-java.util.Map-play.i18n.Langs-) to provide one:
-
-@[test-messages](code/javaguide/tests/MessagesTest.java)

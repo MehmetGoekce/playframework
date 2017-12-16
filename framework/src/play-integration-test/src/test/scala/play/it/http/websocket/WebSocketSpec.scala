@@ -32,9 +32,9 @@ class NettyWebSocketSpec extends WebSocketSpec with NettyIntegrationSpecificatio
 class AkkaHttpWebSocketSpec extends WebSocketSpec with AkkaHttpIntegrationSpecification
 
 class NettyPingWebSocketOnlySpec extends PingWebSocketSpec with NettyIntegrationSpecification
-class AkkaHttpPingWebSocketOnlySpec extends PingWebSocketSpec with AkkaHttpIntegrationSpecification
+class AkkaHttpPingWebSocketOnlySpec extends PingWebSocketSpec with NettyIntegrationSpecification
 
-trait PingWebSocketSpec extends PlaySpecification with WsTestClient with ServerIntegrationSpecification with WebSocketSpecMethods {
+trait PingWebSocketSpec extends PlaySpecification with WsTestClient with NettyIntegrationSpecification with WebSocketSpecMethods {
 
   sequential
 
@@ -304,7 +304,7 @@ trait WebSocketSpec extends PlaySpecification
       implicit def toHandler[J <: AnyRef](javaHandler: => J)(implicit factory: HandlerInvokerFactory[J], ct: ClassTag[J]): Handler = {
         val invoker = factory.createInvoker(
           javaHandler,
-          HandlerDef(ct.runtimeClass.getClassLoader, "package", "controller", "method", Nil, "GET", "/stream")
+          new HandlerDef(ct.runtimeClass.getClassLoader, "package", "controller", "method", Nil, "GET", "", "/stream")
         )
         invoker.call(javaHandler)
       }
@@ -443,7 +443,7 @@ trait WebSocketSpecMethods extends PlaySpecification with WsTestClient with Serv
   def allowRejectingTheWebSocketWithAResult(webSocket: Application => Int => Handler) = {
     withServer(app => webSocket(app)(FORBIDDEN)) { implicit app =>
       val ws = app.injector.instanceOf[WSClient]
-      await(ws.url(s"http://localhost:$testServerPort/stream").addHttpHeaders(
+      await(ws.url(s"http://localhost:$testServerPort/stream").withHeaders(
         "Upgrade" -> "websocket",
         "Connection" -> "upgrade",
         "Sec-WebSocket-Version" -> "13",

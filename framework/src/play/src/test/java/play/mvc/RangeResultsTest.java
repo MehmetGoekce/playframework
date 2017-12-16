@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 public class RangeResultsTest {
@@ -86,7 +85,7 @@ public class RangeResultsTest {
         try (InputStream stream = Files.newInputStream(path)) {
             Result result = RangeResults.ofStream(stream, path.toFile().length(), "file.txt");
             assertEquals(result.status(), PARTIAL_CONTENT);
-            assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+            assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
         }
     }
 
@@ -97,7 +96,7 @@ public class RangeResultsTest {
             Result result = RangeResults.ofStream(stream, path.toFile().length(), "file.txt");
             assertEquals(result.status(), OK);
             assertEquals(BINARY, result.body().contentType().orElse(""));
-            assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+            assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
         }
     }
 
@@ -118,7 +117,7 @@ public class RangeResultsTest {
             Result result = RangeResults.ofStream(stream, path.toFile().length(), "file.txt", TEXT);
             assertEquals(result.status(), PARTIAL_CONTENT);
             assertEquals(TEXT, result.body().contentType().orElse(""));
-            assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+            assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
         }
     }
 
@@ -130,7 +129,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path);
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"test.tmp\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"test.tmp\"; filename*=utf-8''test.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -140,7 +139,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path);
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"test.tmp\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"test.tmp\"; filename*=utf-8''test.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -149,7 +148,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path, "file.txt");
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -159,7 +158,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path, "file.txt");
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -169,7 +168,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path, "测 试.tmp");
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -179,7 +178,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofPath(path, "测 试.tmp");
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     // -- Files
@@ -190,7 +189,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile());
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"test.tmp\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"test.tmp\"; filename*=utf-8''test.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -200,7 +199,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile());
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"test.tmp\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"test.tmp\"; filename*=utf-8''test.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -209,7 +208,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile(), "file.txt");
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -219,7 +218,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile(), "file.txt");
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -229,7 +228,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile(), "测 试.tmp");
 
         assertEquals(result.status(), PARTIAL_CONTENT);
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -239,7 +238,7 @@ public class RangeResultsTest {
         Result result = RangeResults.ofFile(path.toFile(), "测 试.tmp");
 
         assertEquals(result.status(), OK);
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     // -- Sources
@@ -275,7 +274,7 @@ public class RangeResultsTest {
 
         assertEquals(result.status(), PARTIAL_CONTENT);
         assertEquals(BINARY, result.body().contentType().orElse(""));
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -287,7 +286,7 @@ public class RangeResultsTest {
 
         assertEquals(result.status(), OK);
         assertEquals(BINARY, result.body().contentType().orElse(""));
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -300,7 +299,7 @@ public class RangeResultsTest {
 
         assertEquals(result.status(), PARTIAL_CONTENT);
         assertEquals(TEXT, result.body().contentType().orElse(""));
-        assertEquals("attachment; filename=\"file.txt\"", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"file.txt\"; filename*=utf-8''file.txt", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -312,7 +311,7 @@ public class RangeResultsTest {
 
         assertEquals(result.status(), OK);
         assertEquals(BINARY, result.body().contentType().orElse(""));
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     @Test
@@ -325,12 +324,11 @@ public class RangeResultsTest {
 
         assertEquals(result.status(), PARTIAL_CONTENT);
         assertEquals(TEXT, result.body().contentType().orElse(""));
-        assertEquals("attachment; filename=\"? ?.tmp\"; filename*=utf-8''%e6%b5%8b%20%e8%af%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
+        assertEquals("attachment; filename=\"测 试.tmp\"; filename*=utf-8''%E6%B5%8B%20%E8%AF%95.tmp", result.header(CONTENT_DISPOSITION).orElse(""));
     }
 
     private void mockRegularRequest() {
         Http.Request request = mock(Http.Request.class);
-        when(request.header(RANGE)).thenReturn(Optional.empty());
         when(this.ctx.request()).thenReturn(request);
         
         mockRegularFileTypes();
@@ -338,7 +336,7 @@ public class RangeResultsTest {
 
     private void mockRangeRequest() {
         Http.Request request = mock(Http.Request.class);
-        when(request.header(RANGE)).thenReturn(Optional.of("bytes=0-1"));
+        when(request.getHeader(RANGE)).thenReturn("bytes=0-1");
         when(this.ctx.request()).thenReturn(request);
 
         mockRegularFileTypes();

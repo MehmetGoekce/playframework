@@ -27,6 +27,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 import play.mvc.Http;
+import play.mvc.Http.MultipartFormData;
 import play.mvc.Http.MultipartFormData.FilePart;
 import play.mvc.Result;
 import play.test.WithApplication;
@@ -48,8 +49,8 @@ public class JavaFileUpload extends WithApplication {
     static class SyncUpload extends Controller {
         //#syncUpload
         public Result upload() {
-            Http.MultipartFormData<File> body = request().body().asMultipartFormData();
-            Http.MultipartFormData.FilePart<File> picture = body.getFile("picture");
+            MultipartFormData<File> body = request().body().asMultipartFormData();
+            FilePart<File> picture = body.getFile("picture");
             if (picture != null) {
                 String fileName = picture.getFilename();
                 String contentType = picture.getContentType();

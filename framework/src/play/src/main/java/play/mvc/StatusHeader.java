@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 
 import akka.stream.javadsl.FileIO;
 import akka.stream.javadsl.Source;
@@ -24,7 +23,6 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import play.core.utils.HttpHeaderParameterEncoding;
 import play.http.HttpEntity;
 import play.libs.Json;
 import play.utils.UriEncoding;
@@ -273,17 +271,10 @@ public class StatusHeader extends Result {
 
     private Result doSendResource(Source<ByteString, ?> data, Optional<Long> contentLength,
                                   Optional<String> resourceName, boolean inline) {
-
-        // Create a Content-Disposition header
-        StringBuilder cdBuilder = new StringBuilder();
-        cdBuilder.append(inline ? "inline" : "attachment");
-        if (resourceName.isPresent()) {
-            cdBuilder.append("; ");
-            HttpHeaderParameterEncoding.encodeToBuilder("filename", resourceName.get(), cdBuilder);
-        }
         Map<String, String> headers = Collections.singletonMap(
                 Http.HeaderNames.CONTENT_DISPOSITION,
-                cdBuilder.toString()
+                (inline ? "inline" : "attachment") +
+                (resourceName.isPresent() ? "; filename=\"" + resourceName.get() + "\"; filename*=utf-8''" + UriEncoding.encodePathSegment(resourceName.get(), UTF_8) : "")
         );
 
         return new Result(status(), headers, new HttpEntity.Streamed(

@@ -1,6 +1,3 @@
-/*
- * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
- */
 //###replace: package tasks;
 package javaguide.scheduling;
 

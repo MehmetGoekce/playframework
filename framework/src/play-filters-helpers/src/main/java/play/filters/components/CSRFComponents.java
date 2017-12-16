@@ -5,6 +5,7 @@ package play.filters.components;
 
 import play.components.*;
 import play.filters.csrf.*;
+import play.inject.Injector;
 
 /**
  * The Java CSRF components.
@@ -14,6 +15,8 @@ public interface CSRFComponents extends ConfigurationComponents,
         HttpConfigurationComponents,
         HttpErrorHandlerComponents,
         AkkaComponents {
+
+    Injector injector();
 
     default CSRFConfig csrfConfig() {
         return CSRFConfig$.MODULE$.fromConfiguration(configuration());
@@ -38,7 +41,7 @@ public interface CSRFComponents extends ConfigurationComponents,
                 sessionConfiguration(),
                 csrfTokenProvider(),
                 csrfTokenSigner().asScala(),
-                csrfErrorHandler()
+                injector()
         );
     }
 
@@ -60,10 +63,12 @@ public interface CSRFComponents extends ConfigurationComponents,
         );
     }
 
+    // TODO do we need this?
     default CSRFCheck csrfCheck() {
         return new CSRFCheck(csrfConfig(), csrfTokenSigner().asScala(), sessionConfiguration());
     }
 
+    // TODO do we need this?
     default CSRFAddToken csrfAddToken() {
         return new CSRFAddToken(csrfConfig(), csrfTokenSigner().asScala(), sessionConfiguration());
     }

@@ -6,7 +6,6 @@ package controllers
 import play.api.mvc._
 import javax.inject.Inject
 import scala.collection.JavaConverters._
-import models._
 
 class Application @Inject() (c: ControllerComponents) extends AbstractController(c) {
   def index = Action {
@@ -17,12 +16,6 @@ class Application @Inject() (c: ControllerComponents) extends AbstractController
   }
   def withParam(param: String) = Action {
     Ok(param)
-  }
-  def user(userId: UserId) = Action {
-    Ok(userId.id)
-  }
-  def queryUser(userId: UserId) = Action {
-    Ok(userId.id)
   }
   def takeInt(i: Int) = Action {
     Ok(s"$i")

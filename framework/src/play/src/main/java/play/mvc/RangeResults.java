@@ -20,7 +20,8 @@ import java.util.Optional;
 public class RangeResults {
 
     private static Optional<String> rangeHeader() {
-        return Http.Context.current().request().header(Http.HeaderNames.RANGE);
+        Http.Request request = Http.Context.current().request();
+        return Optional.ofNullable(request.getHeader(Http.HeaderNames.RANGE));
     }
 
     private static Optional<String> mimeTypeFor(String fileName) {

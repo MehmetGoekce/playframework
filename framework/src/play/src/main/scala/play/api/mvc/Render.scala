@@ -39,7 +39,7 @@ trait Rendering {
       val result =
         if (request.acceptedTypes.isEmpty) _render(Seq(new MediaRange("*", "*", Nil, None, Nil)))
         else _render(request.acceptedTypes)
-      result.withHeaders(result.header.varyWith(ACCEPT))
+      result.withHeaders(VARY -> ACCEPT)
     }
 
     /**
@@ -70,7 +70,7 @@ trait Rendering {
       val result =
         if (request.acceptedTypes.isEmpty) _render(Seq(new MediaRange("*", "*", Nil, None, Nil)))
         else _render(request.acceptedTypes)
-      result.map(r => r.withHeaders(r.header.varyWith(ACCEPT)))
+      result.map(_.withHeaders(VARY -> ACCEPT))
     }
   }
 }

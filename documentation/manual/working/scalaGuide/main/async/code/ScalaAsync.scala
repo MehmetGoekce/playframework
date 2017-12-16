@@ -43,7 +43,7 @@ trait MyExecutionContext extends ExecutionContext
 class MyExecutionContextImpl @Inject()(system: ActorSystem)
   extends CustomExecutionContext(system, "my.executor") with MyExecutionContext
 
-class HomeController @Inject()(myExecutionContext: MyExecutionContext, val controllerComponents: ControllerComponents) extends BaseController {
+class HomeController @Inject()(myExecutionContext: MyExecutionContext) extends Controller {
   def index = Action.async {
     Future {
       // Call some blocking API
@@ -53,8 +53,7 @@ class HomeController @Inject()(myExecutionContext: MyExecutionContext, val contr
 }
 //#my-execution-context
 
-class ScalaAsyncSamples @Inject() (val controllerComponents: ControllerComponents)(implicit actorSystem: ActorSystem, ec: ExecutionContext)
-  extends BaseController {
+class ScalaAsyncSamples @Inject() (implicit actorSystem: ActorSystem, ec: ExecutionContext) extends Controller {
 
   def futureResult = {
     def computePIAsynchronously() = Future.successful(3.14)
@@ -102,12 +101,11 @@ class ScalaAsyncSamples @Inject() (val controllerComponents: ControllerComponent
     import play.api.libs.concurrent.Futures._
 
     def index = Action.async {
-      // You will need an implicit Futures for withTimeout() -- you usually get
-      // that by injecting it into your controller's constructor
+      // futures instance implicit here
       intensiveComputation().withTimeout(1.seconds).map { i =>
         Ok("Got result: " + i)
       }.recover {
-        case e: scala.concurrent.TimeoutException =>
+        case e: TimeoutException =>
           InternalServerError("timeout")
       }
     }

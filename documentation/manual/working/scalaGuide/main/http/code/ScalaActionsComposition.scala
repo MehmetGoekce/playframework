@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
  */
@@ -10,11 +11,12 @@ import akka.stream.ActorMaterializer
 import play.api.http._
 import play.api.test._
 import play.api.test.Helpers._
-import play.api.mvc.{AbstractController, BodyParsers, Controller, ControllerHelpers}
-import org.specs2.mutable.{Specification, SpecificationLike}
+import play.api.mvc.BodyParsers
+import org.specs2.mutable.Specification
 import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
 import play.api.Logger
+import play.api.mvc.Controller
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext
@@ -27,7 +29,7 @@ object User {
 }
 
 @RunWith(classOf[JUnitRunner])
-class ScalaActionsCompositionSpec extends Specification with ControllerHelpers {
+class ScalaActionsCompositionSpec extends Specification with Controller {
 
   "an action composition" should {
 
@@ -43,23 +45,22 @@ class ScalaActionsCompositionSpec extends Specification with ControllerHelpers {
       }
       //#basic-logging
       implicit val system = ActorSystem()
-      implicit val mat = ActorMaterializer()
-      implicit val ec: ExecutionContext = system.dispatcher
-      val parse = PlayBodyParsers()
+      implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
+      val eh: HttpErrorHandler =
+        new DefaultHttpErrorHandler(play.api.Environment.simple(), play.api.Configuration.empty)
+      val parse = PlayBodyParsers(ParserConfiguration(), eh, ActorMaterializer(), SingletonTemporaryFileCreator)
       val parser = new BodyParsers.Default(parse)
       val loggingAction = new LoggingAction(parser)
 
       //#basic-logging-index
-      class MyController @Inject()(loggingAction: LoggingAction,
-                                   cc:ControllerComponents)
-        extends AbstractController(cc) {
+      class MyController @Inject()(loggingAction: LoggingAction) extends Controller {
         def index = loggingAction {
           Ok("Hello World")
         }
       }
       //#basic-logging-index
 
-      testAction(new MyController(loggingAction, Helpers.stubControllerComponents()).index)
+      testAction(new MyController(loggingAction).index)
 
       //#basic-logging-parse
       def submit = loggingAction(parse.text) { request =>
@@ -68,7 +69,7 @@ class ScalaActionsCompositionSpec extends Specification with ControllerHelpers {
       //#basic-logging-parse
 
       val request = FakeRequest().withTextBody("hello with the parse")
-      testAction(new MyController(loggingAction, Helpers.stubControllerComponents()).index, request)
+      testAction(new MyController(loggingAction).index, request)
     }
 
     "Wrapping existing actions" in {
@@ -98,9 +99,10 @@ class ScalaActionsCompositionSpec extends Specification with ControllerHelpers {
       //#actions-wrapping-builder
 
       implicit val system = ActorSystem()
-      implicit val mat = ActorMaterializer()
-      implicit val ec: ExecutionContext = system.dispatcher
-      val parse = PlayBodyParsers()
+      implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
+      val eh: HttpErrorHandler =
+        new DefaultHttpErrorHandler(play.api.Environment.simple(), play.api.Configuration.empty)
+      val parse = PlayBodyParsers(ParserConfiguration(), eh, ActorMaterializer(), SingletonTemporaryFileCreator)
       val parser = new BodyParsers.Default(parse)
       val loggingAction = new LoggingAction(parser)
 
@@ -212,9 +214,10 @@ class ScalaActionsCompositionSpec extends Specification with ControllerHelpers {
       }
       //#authenticated-action-builder
       implicit val system = ActorSystem()
-      implicit val mat = ActorMaterializer()
       implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
-      val parser = new BodyParsers.Default()
+      val eh: HttpErrorHandler =
+        new DefaultHttpErrorHandler(play.api.Environment.simple(), play.api.Configuration.empty)
+      val parser = new BodyParsers.Default(ParserConfiguration(), eh, ActorMaterializer(), SingletonTemporaryFileCreator)
       val userAction = new UserAction(parser)
 
       def currentUser = userAction { request =>

@@ -99,9 +99,7 @@ import javax.inject._
 import actors.HelloActor
 
 @Singleton
-class Application @Inject() (system: ActorSystem,
-                             cc:ControllerComponents)
-  extends AbstractController(cc) {
+class Application @Inject() (system: ActorSystem) extends Controller {
 
   val helloActor = system.actorOf(HelloActor.props, "hello-actor")
 

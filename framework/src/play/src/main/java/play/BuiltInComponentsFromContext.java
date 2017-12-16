@@ -6,7 +6,6 @@ package play;
 import akka.actor.ActorSystem;
 import com.typesafe.config.Config;
 
-import play.api.OptionalSourceMapper;
 import play.api.http.DefaultFileMimeTypesProvider;
 import play.api.http.JavaCompatibleHttpRequestHandler;
 import play.api.i18n.DefaultLangsProvider;
@@ -17,16 +16,18 @@ import play.api.mvc.request.DefaultRequestFactory;
 import play.api.mvc.request.RequestFactory;
 
 import play.core.SourceMapper;
-import play.core.j.*;
+import play.core.j.DefaultJavaHandlerComponents;
+import play.core.j.JavaHandlerComponents;
+import play.core.j.JavaHttpErrorHandlerAdapter;
 
-import play.http.DefaultHttpErrorHandler;
 import play.http.DefaultHttpFilters;
-import play.http.HttpErrorHandler;
 import play.http.HttpRequestHandler;
 
 import play.i18n.Langs;
 
 import play.inject.ApplicationLifecycle;
+import play.inject.DelegateInjector;
+import play.inject.Injector;
 
 import play.libs.Files;
 import play.libs.crypto.CSRFTokenSigner;
@@ -34,10 +35,8 @@ import play.libs.crypto.CookieSigner;
 import play.libs.crypto.DefaultCSRFTokenSigner;
 import play.libs.crypto.DefaultCookieSigner;
 
-import play.mvc.BodyParser;
 import play.mvc.FileMimeTypes;
 import scala.collection.immutable.Map$;
-import scala.compat.java8.OptionConverters;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -61,8 +60,7 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
     private final Supplier<CSRFTokenSigner> _csrfTokenSigner = lazy(this::createCsrfTokenSigner);
     private final Supplier<Files.TemporaryFileCreator> _tempFileCreator = lazy(this::createTempFileCreator);
 
-    private final Supplier<HttpErrorHandler> _httpErrorHandler = lazy(this::createHttpErrorHandler);
-    private final Supplier<MappedJavaHandlerComponents> _javaHandlerComponents = lazy(this::createJavaHandlerComponents);
+    private final Supplier<Injector> _injector = lazy(this::createInjector);
 
     public BuiltInComponentsFromContext(ApplicationLoader.Context context) {
         this.context = context;
@@ -95,11 +93,10 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
 
     private Application createApplication() {
         RequestFactory requestFactory = new DefaultRequestFactory(httpConfiguration());
-        SimpleInjector injector = new SimpleInjector(NewInstanceInjector$.MODULE$, Map$.MODULE$.empty());
         return new play.api.DefaultApplication(
                 environment().asScala(),
                 applicationLifecycle().asScala(),
-                injector,
+                injector().asScala(),
                 configuration(),
                 requestFactory,
                 httpRequestHandler().asScala(),
@@ -130,55 +127,20 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
     }
 
     @Override
-    public MappedJavaHandlerComponents javaHandlerComponents() {
-        return this._javaHandlerComponents.get();
-    }
-
-    private MappedJavaHandlerComponents createJavaHandlerComponents() {
-        MappedJavaHandlerComponents javaHandlerComponents = new MappedJavaHandlerComponents(
-                actionCreator(),
-                httpConfiguration(),
-                executionContext(),
-                javaContextComponents()
-        );
-
-        return javaHandlerComponents
-                .addBodyParser(BodyParser.Default.class, this::defaultBodyParser)
-                .addBodyParser(BodyParser.AnyContent.class, this::anyContentBodyParser)
-                .addBodyParser(BodyParser.Json.class, this::jsonBodyParser)
-                .addBodyParser(BodyParser.TolerantJson.class, this::tolerantJsonBodyParser)
-                .addBodyParser(BodyParser.Xml.class, this::xmlBodyParser)
-                .addBodyParser(BodyParser.TolerantXml.class, this::tolerantXmlBodyParser)
-                .addBodyParser(BodyParser.Text.class, this::textBodyParser)
-                .addBodyParser(BodyParser.TolerantText.class, this::tolerantTextBodyParser)
-                .addBodyParser(BodyParser.Bytes.class, this::bytesBodyParser)
-                .addBodyParser(BodyParser.Raw.class, this::rawBodyParser)
-                .addBodyParser(BodyParser.FormUrlEncoded.class, this::formUrlEncodedBodyParser)
-                .addBodyParser(BodyParser.MultipartFormData.class, this::multipartFormDataBodyParser)
-                .addBodyParser(BodyParser.Empty.class, this::emptyBodyParser);
-    }
-
-    @Override
-    public HttpErrorHandler httpErrorHandler() {
-        return this._httpErrorHandler.get();
-    }
-
-    private HttpErrorHandler createHttpErrorHandler() {
-        return new DefaultHttpErrorHandler(
-                config(),
-                environment(),
-                new OptionalSourceMapper(OptionConverters.toScala(sourceMapper())),
-                () -> router().asScala()
-        );
-    }
-
-    @Override
     public HttpRequestHandler httpRequestHandler() {
         return this._httpRequestHandler.get();
     }
 
     private HttpRequestHandler createHttpRequestHandler() {
         DefaultHttpFilters filters = new DefaultHttpFilters(httpFilters());
+
+        JavaHandlerComponents javaHandlerComponents = new DefaultJavaHandlerComponents(
+                injector().asScala(),
+                actionCreator(),
+                httpConfiguration(),
+                executionContext(),
+                javaContextComponents()
+        );
 
         play.api.http.HttpErrorHandler scalaErrorHandler = new JavaHttpErrorHandlerAdapter(
                 httpErrorHandler(),
@@ -190,7 +152,7 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
                 scalaErrorHandler,
                 httpConfiguration(),
                 filters.asScala(),
-                javaHandlerComponents()
+                javaHandlerComponents
         ).asJava();
     }
 
@@ -200,6 +162,7 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
     }
 
     private ActorSystem createActorSystem() {
+        // TODO do we need a Java version for this provider?
         return new ActorSystemProvider(
                 environment().asScala(),
                 configuration(),
@@ -246,5 +209,16 @@ public abstract class BuiltInComponentsFromContext implements BuiltInComponents 
                 applicationLifecycle().asScala(),
                 temporaryFileReaper
         ).asJava();
+    }
+
+    @Override
+    public Injector injector() {
+        return this._injector.get();
+    }
+
+    private Injector createInjector() {
+        // TODO do we need to register components like the scala version?
+        SimpleInjector scalaInjector = new SimpleInjector(NewInstanceInjector$.MODULE$, Map$.MODULE$.empty());
+        return new DelegateInjector(scalaInjector);
     }
 }

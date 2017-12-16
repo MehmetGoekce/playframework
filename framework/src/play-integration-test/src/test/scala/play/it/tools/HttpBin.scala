@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
  */
+
 package play.it.tools
 
 import java.nio.charset.StandardCharsets
@@ -325,7 +326,7 @@ object HttpBinApplication {
 
   def app = {
     new BuiltInComponentsFromContext(ApplicationLoader.createContext(Environment.simple())) with AhcWSComponents with NoHttpFiltersComponents {
-      override implicit lazy val Action = defaultActionBuilder
+      implicit lazy val Action = defaultActionBuilder
       def router = SimpleRouter(
         PartialFunction.empty
           .orElse(getIp)

@@ -12,7 +12,6 @@ import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
 import akka.stream.stage._
 import akka.util.ByteString
 import play.api.MarkerContexts.SecurityMarkerContext
-import play.api.http.HttpEntity
 import play.api.http.HeaderNames._
 import play.api.http.SessionConfiguration
 import play.api.libs.crypto.CSRFTokenSigner
@@ -74,7 +73,7 @@ class CSRFAction(
               continue
             } else {
               filterLogger.warn("[CSRF] Check failed because invalid token found in query string: " +
-                request.uri)(SecurityMarkerContext)
+                queryStringToken)(SecurityMarkerContext)
               checkFailed(request, "Bad CSRF token found in query String")
             }
 
@@ -90,17 +89,17 @@ class CSRFAction(
                 checkMultipartBody(request, next, headerToken, config.tokenName)
               // No way to extract token from other content types
               case Some(content) =>
-                filterLogger.warn(s"[CSRF] Check failed because $content for request " + request.uri)(SecurityMarkerContext)
+                filterLogger.warn(s"[CSRF] Check failed because $content request")(SecurityMarkerContext)
                 checkFailed(request, s"No CSRF token found for $content body")
               case None =>
-                filterLogger.warn(s"[CSRF] Check failed because request without content type for " + request.uri)(SecurityMarkerContext)
+                filterLogger.warn(s"[CSRF] Check failed because request without content type")(SecurityMarkerContext)
                 checkFailed(request, s"No CSRF token found for body without content type")
             }
 
           }
         } getOrElse {
 
-          filterLogger.warn("[CSRF] Check failed because no token found in headers for " + request.uri)(SecurityMarkerContext)
+          filterLogger.warn("[CSRF] Check failed because no token found in headers")(SecurityMarkerContext)
           checkFailed(request, "No CSRF token found in headers")
 
         }
@@ -148,7 +147,7 @@ class CSRFAction(
             filterLogger.trace("[CSRF] Valid token found in body")
             true
           } else {
-            filterLogger.warn("[CSRF] Check failed because no or invalid token found in body for " + request.uri)(SecurityMarkerContext)
+            filterLogger.warn("[CSRF] Check failed because no or invalid token found in body")(SecurityMarkerContext)
             false
           }
         }))
@@ -162,7 +161,7 @@ class CSRFAction(
         action(request).run(validatedBodySource)
       }.recoverWith {
         case NoTokenInBody =>
-          filterLogger.warn("[CSRF] Check failed with NoTokenInBody for " + request.uri)(SecurityMarkerContext)
+          filterLogger.warn("[CSRF] Check failed with NoTokenInBody")(SecurityMarkerContext)
           csrfActionHelper.clearTokenIfInvalid(request, errorHandler, "No CSRF token found in body")
       }
   }
@@ -377,13 +376,6 @@ class CSRFActionHelper(
   }
 
   /**
-   * @return true if the token is HTTP only, i.e. the token cannot be accessed from client-side JavaScript.
-   */
-  private def tokenIsHttpOnly: Boolean = {
-    if (csrfConfig.cookieName.isDefined) csrfConfig.httpOnlyCookie else sessionConfiguration.httpOnly
-  }
-
-  /**
    * Get the header token, that is, the token that should be validated.
    */
   def getTokenToValidate(request: RequestHeader): Option[String] = {
@@ -452,7 +444,7 @@ class CSRFActionHelper(
   }
 
   def requiresCsrfCheck(request: RequestHeader): Boolean = {
-    if (csrfConfig.bypassCorsTrustedOrigins && request.attrs.contains(CORSFilter.Attrs.Origin)) {
+    if (csrfConfig.bypassCorsTrustedOrigins && request.tags.contains(CORSFilter.RequestTag)) {
       filterLogger.trace("[CSRF] Bypassing check because CORSFilter request tag found")
       false
     } else {
@@ -465,11 +457,7 @@ class CSRFActionHelper(
       case None =>
         filterLogger.warn("[CSRF] No token found on request!")
         result
-      case Some(tokenInfo) if {
-        tokenIsHttpOnly && // the token is not going to be accessed and used from JS
-          result.body.isInstanceOf[HttpEntity.Strict] && // the body was fully rendered
-          !tokenInfo.wasRendered // the token was not rendered in the body of the response
-      } =>
+      case Some(tokenInfo) if !tokenInfo.wasRendered =>
         filterLogger.trace("[CSRF] Not emitting CSRF token because token was never rendered")
         result
       case _ if isCached(result) =>

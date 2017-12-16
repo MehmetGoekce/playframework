@@ -122,7 +122,8 @@ public class RoutingDsl {
 
     @Inject
     public RoutingDsl(PlayBodyParsers bodyParsers, JavaContextComponents contextComponents) {
-        this(bodyParsers.defaultBodyParser(), contextComponents);
+        this.bodyParser = bodyParsers.defaultBodyParser();
+        this.contextComponents = contextComponents;
     }
 
     public static RoutingDsl fromComponents(BuiltInComponents components) {

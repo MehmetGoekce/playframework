@@ -19,7 +19,7 @@ import play.api.libs.streams.Accumulator
 import play.api.mvc.{ EssentialAction, RequestHeader, Results, WebSocket }
 import play.api.{ Application, Configuration, Logger }
 import play.core.server.NettyServer
-import play.core.server.common.{ ForwardedHeaderHandler, ReloadCache, ServerResultUtils }
+import play.core.server.common.{ ForwardedHeaderHandler, ServerResultUtils }
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success, Try }
@@ -41,33 +41,21 @@ private[play] class PlayRequestHandler(val server: NettyServer) extends ChannelI
   // in.
   private var lastResponseSent: Future[Unit] = Future.successful(())
 
-  /**
-   * Values that are cached based on the current application.
-   */
-  private case class ReloadCacheValues(
-    resultUtils: ServerResultUtils,
-    modelConversion: NettyModelConversion
-  )
-
-  /**
-   * A helper to cache values that are derived from the current application.
-   */
-  private val reloadCache = new ReloadCache[ReloadCacheValues] {
-    override protected def reloadValue(tryApp: Try[Application]): ReloadCacheValues = {
-      val serverResultUtils = reloadServerResultUtils(tryApp)
-      val forwardedHeaderHandler = reloadForwardedHeaderHandler(tryApp)
-      val modelConversion = new NettyModelConversion(serverResultUtils, forwardedHeaderHandler)
-      ReloadCacheValues(
-        resultUtils = serverResultUtils,
-        modelConversion = modelConversion
-      )
+  private lazy val resultUtils: ServerResultUtils = {
+    val httpConfiguration = server.applicationProvider.get match {
+      case Success(app) => HttpConfiguration.fromConfiguration(app.configuration, app.environment)
+      case Failure(_) => HttpConfiguration()
     }
+    new ServerResultUtils(httpConfiguration)
   }
 
-  private def resultUtils: ServerResultUtils =
-    reloadCache.cachedFrom(server.applicationProvider.get).resultUtils
-  private def modelConversion: NettyModelConversion =
-    reloadCache.cachedFrom(server.applicationProvider.get).modelConversion
+  // todo: make forwarded header handling part of the DefaultRequestFactory
+  private lazy val modelConversion = {
+    val configuration: Option[Configuration] = server.applicationProvider.get.toOption.map(_.configuration)
+    val forwardedHeaderHandler = new ForwardedHeaderHandler(
+      ForwardedHeaderHandler.ForwardedHeaderHandlerConfig(configuration))
+    new NettyModelConversion(resultUtils, forwardedHeaderHandler)
+  }
 
   /**
    * Handle the given request.

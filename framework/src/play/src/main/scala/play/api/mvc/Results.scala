@@ -3,7 +3,7 @@
  */
 package play.api.mvc
 
-import java.lang.{ StringBuilder => JStringBuilder }
+import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path }
 import java.time.format.DateTimeFormatter
 import java.time.{ ZoneOffset, ZonedDateTime }
@@ -14,7 +14,8 @@ import play.api.http.HeaderNames._
 import play.api.http.{ FileMimeTypes, _ }
 import play.api.i18n.{ Lang, MessagesApi }
 import play.api.{ Logger, Mode }
-import play.core.utils.{ CaseInsensitiveOrdered, HttpHeaderParameterEncoding }
+import play.core.utils.CaseInsensitiveOrdered
+import play.utils.UriEncoding
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.TreeMap
@@ -53,25 +54,7 @@ final class ResponseHeader(val status: Int, _headers: Map[String, String] = Map.
   def asJava: play.mvc.ResponseHeader = {
     new play.mvc.ResponseHeader(status, headers.asJava, reasonPhrase.orNull)
   }
-
-  /**
-   * INTERNAL API
-   *
-   * Appends to the comma-separated `Vary` header of this request
-   */
-  private[play] def varyWith(headerValues: String*): (String, String) = {
-    val newValue = headers.get(VARY) match {
-      case Some(existing) if existing.nonEmpty =>
-        val existingSet: Set[String] = existing.split(",").map(_.trim.toLowerCase)(collection.breakOut)
-        val newValuesToAdd = headerValues.filterNot(v => existingSet.contains(v.trim.toLowerCase))
-        s"$existing${newValuesToAdd.map(v => s",$v").mkString}"
-      case _ =>
-        headerValues.mkString(",")
-    }
-    VARY -> newValue
-  }
 }
-
 object ResponseHeader {
   val basicDateFormatPattern = "EEE, dd MMM yyyy HH:mm:ss"
   val httpDateFormat: DateTimeFormatter =
@@ -262,7 +245,9 @@ case class Result(header: ResponseHeader, body: HttpEntity,
   def removingFromSession(keys: String*)(implicit request: RequestHeader): Result =
     withSession(new Session(session.data -- keys))
 
-  override def toString = s"Result(${header})"
+  override def toString = {
+    "Result(" + header + ")"
+  }
 
   /**
    * Logs a redirect warning for flashing (in dev mode) if the status code is not 3xx
@@ -421,11 +406,8 @@ trait Results {
           status,
           Map(
             CONTENT_DISPOSITION -> {
-              val builder = new JStringBuilder
-              builder.append(if (inline) "inline" else "attachment")
-              builder.append("; ")
-              HttpHeaderParameterEncoding.encodeToBuilder("filename", name, builder)
-              builder.toString
+              val dispositionType = if (inline) "inline" else "attachment"
+              s"""$dispositionType; filename="$name"; filename*=utf-8''${UriEncoding.encodePathSegment(name, StandardCharsets.UTF_8)}"""
             }
           )
         ),

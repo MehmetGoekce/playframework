@@ -3,20 +3,16 @@
  */
 package javaguide.ws;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import javaguide.testhelpers.MockJavaAction;
 
 // #ws-imports
 import org.slf4j.Logger;
 import play.api.Configuration;
+import play.core.j.HttpExecutionContext;
 import play.core.j.JavaHandlerComponents;
 import play.libs.concurrent.Futures;
 import play.libs.ws.*;
 
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.concurrent.*;
 // #ws-imports
@@ -52,7 +48,7 @@ import play.mvc.Results;
 public class JavaWS {
     private static final String feedUrl = "http://localhost:3333/feed";
 
-    public static class Controller0 extends MockJavaAction implements WSBodyReadables, WSBodyWritables {
+    public static class Controller0 extends MockJavaAction {
 
         private final WSClient ws;
         private final Materializer materializer;
@@ -70,9 +66,9 @@ public class JavaWS {
             // #ws-holder
 
             // #ws-complex-holder
-            WSRequest complexRequest = request.addHeader("headerKey", "headerValue")
-                                                    .setRequestTimeout(Duration.of(1000, ChronoUnit.MILLIS))
-                                                    .addQueryParameter("paramKey", "paramValue");
+            WSRequest complexRequest = request.setHeader("headerKey", "headerValue")
+                                                    .setRequestTimeout(1000)
+                                                    .setQueryParameter("paramKey", "paramValue");
             // #ws-complex-holder
 
             // #ws-get
@@ -89,26 +85,22 @@ public class JavaWS {
             // #ws-follow-redirects
 
             // #ws-query-parameter
-            ws.url(url).addQueryParameter("paramKey", "paramValue");
+            ws.url(url).setQueryParameter("paramKey", "paramValue");
             // #ws-query-parameter
 
             // #ws-header
-            ws.url(url).addHeader("headerKey", "headerValue").get();
+            ws.url(url).setHeader("headerKey", "headerValue").get();
             // #ws-header
-
-            // #ws-cookie
-            ws.url(url).addCookies(new WSCookieBuilder().setName("headerKey").setValue("headerValue").build()).get();
-            // #ws-cookie
 
             String jsonString = "{\"key1\":\"value1\"}";
             // #ws-header-content-type
-            ws.url(url).addHeader("Content-Type", "application/json").post(jsonString);
+            ws.url(url).setHeader("Content-Type", "application/json").post(jsonString);
             // OR
             ws.url(url).setContentType("application/json").post(jsonString);
             // #ws-header-content-type
 
             // #ws-timeout
-            ws.url(url).setRequestTimeout(Duration.of(1000, ChronoUnit.MILLIS)).get();
+            ws.url(url).setRequestTimeout(1000).get();
             // #ws-timeout
 
             // #ws-post-form-data
@@ -123,16 +115,6 @@ public class JavaWS {
 
             ws.url(url).post(json);
             // #ws-post-json
-
-            // #ws-post-json-objectmapper
-            ObjectMapper objectMapper = play.libs.Json.newDefaultMapper();
-            ws.url(url).post(body(json, objectMapper));
-            // #ws-post-json-objectmapper
-
-            // #ws-post-xml
-            Document xml = play.libs.XML.fromString("<document></document>");
-            ws.url(url).post(xml);
-            // #ws-post-xml
 
             // #ws-post-multipart
             ws.url(url).post(Source.single(new DataPart("hello", "world")));
@@ -152,7 +134,7 @@ public class JavaWS {
             Stream<ByteString> largeSource = IntStream.range(0,10).boxed().map(i -> seedValue);
             Source<ByteString, ?> largeImage = Source.from(largeSource.collect(Collectors.toList()));
             // #ws-stream-request
-            CompletionStage<WSResponse> wsResponse = ws.url(url).setBody(body(largeImage)).execute("PUT");
+            CompletionStage<? extends WSResponse> wsResponse = ws.url(url).setBody(largeImage).execute("PUT");
             // #ws-stream-request
         }
 
@@ -161,15 +143,13 @@ public class JavaWS {
             String url = "http://example.com";
 
             // #ws-response-json
-            // implements WSBodyReadables or use WSBodyReadables.instance.json()
             CompletionStage<JsonNode> jsonPromise = ws.url(url).get()
-                    .thenApply(r -> r.getBody(json()));
+                    .thenApply(WSResponse::asJson);
             // #ws-response-json
 
             // #ws-response-xml
-            // implements WSBodyReadables or use WSBodyReadables.instance.xml()
             CompletionStage<Document> documentPromise = ws.url(url).get()
-                    .thenApply(r -> r.getBody(xml()));
+                    .thenApply(WSResponse::asXml);
             // #ws-response-xml
         }
 
@@ -177,11 +157,11 @@ public class JavaWS {
             String url = "http://example.com";
             // #stream-count-bytes
             // Make the request
-            CompletionStage<WSResponse> futureResponse =
+            CompletionStage<? extends StreamedResponse> futureResponse =
                 ws.url(url).setMethod("GET").stream();
 
             CompletionStage<Long> bytesReturned = futureResponse.thenCompose(res -> {
-                Source<ByteString, ?> responseBody = res.getBodyAsSource();
+                Source<ByteString, ?> responseBody = res.getBody();
 
                 // Count the number of bytes returned
                 Sink<ByteString, CompletionStage<Long>> bytesSum =
@@ -199,11 +179,11 @@ public class JavaWS {
             OutputStream outputStream = java.nio.file.Files.newOutputStream(file.toPath());
 
             // Make the request
-            CompletionStage<WSResponse> futureResponse =
+            CompletionStage<? extends StreamedResponse> futureResponse =
                 ws.url(url).setMethod("GET").stream();
 
             CompletionStage<File> downloadedFile = futureResponse.thenCompose(res -> {
-                Source<ByteString, ?> responseBody = res.getBodyAsSource();
+                Source<ByteString, ?> responseBody = res.getBody();
 
                 // The sink that writes to the output stream
                 Sink<ByteString, CompletionStage<akka.Done>> outputWriter =
@@ -228,20 +208,21 @@ public class JavaWS {
             String url = "http://example.com";
             //#stream-to-result
             // Make the request
-            CompletionStage<WSResponse> futureResponse = ws.url(url).setMethod("GET").stream();
+            CompletionStage<? extends StreamedResponse> futureResponse = ws.url(url).setMethod("GET").stream();
 
             CompletionStage<Result> result = futureResponse.thenApply(response -> {
-                Source<ByteString, ?> body = response.getBodyAsSource();
+                WSResponseHeaders responseHeaders = response.getHeaders();
+                Source<ByteString, ?> body = response.getBody();
                 // Check that the response was successful
-                if (response.getStatus() == 200) {
+                if (responseHeaders.getStatus() == 200) {
                     // Get the content type
                     String contentType =
-                            Optional.ofNullable(response.getHeaders().get("Content-Type"))
+                            Optional.ofNullable(responseHeaders.getHeaders().get("Content-Type"))
                                     .map(contentTypes -> contentTypes.get(0))
                                     .orElse("application/octet-stream");
 
                     // If there's a content length, send that, otherwise return the body chunked
-                    Optional<String> contentLength = Optional.ofNullable(response.getHeaders()
+                    Optional<String> contentLength = Optional.ofNullable(responseHeaders.getHeaders()
                             .get("Content-Length"))
                             .map(contentLengths -> contentLengths.get(0));
                     if (contentLength.isPresent()) {
@@ -263,21 +244,21 @@ public class JavaWS {
         public void streamPut() {
             String url = "http://example.com";
             //#stream-put
-            CompletionStage<WSResponse> futureResponse  =
-                ws.url(url).setMethod("PUT").setBody(body("some body")).stream();
+            CompletionStage<? extends StreamedResponse> futureResponse  =
+                ws.url(url).setMethod("PUT").setBody("some body").stream();
             //#stream-put
         }
 
         public void patternExamples() {
             String urlOne = "http://localhost:3333/one";
             // #ws-composition
-            final CompletionStage<WSResponse> responseThreePromise = ws.url(urlOne).get()
+            final CompletionStage<? extends WSResponse> responseThreePromise = ws.url(urlOne).get()
                     .thenCompose(responseOne -> ws.url(responseOne.getBody()).get())
                     .thenCompose(responseTwo -> ws.url(responseTwo.getBody()).get());
             // #ws-composition
 
             // #ws-recover
-            CompletionStage<WSResponse> responsePromise = ws.url("http://example.com").get();
+            CompletionStage<? extends WSResponse> responsePromise = ws.url("http://example.com").get();
             responsePromise.handle((result, error) -> {
                 if (error != null) {
                     return ws.url("http://backup.example.com").get();
@@ -341,7 +322,7 @@ public class JavaWS {
         // #ws-action
     }
 
-    public static class Controller2 extends MockJavaAction implements WSBodyWritables, WSBodyReadables {
+    public static class Controller2 extends MockJavaAction {
 
         private final WSClient ws;
 
@@ -360,7 +341,7 @@ public class JavaWS {
         // #composed-call
     }
 
-    public static class Controller3 extends MockJavaAction implements WSBodyWritables, WSBodyReadables {
+    public static class Controller3 extends MockJavaAction {
 
         private final WSClient ws;
         private Logger logger;
@@ -383,45 +364,12 @@ public class JavaWS {
                 return executor.apply(request);
             };
 
-            return ws.url(feedUrl)
-                    .setRequestFilter(filter)
-                    .get()
-                    .thenApply((WSResponse r) -> {
-                        String title = r.getBody(json()).findPath("title").asText();
-                        return ok("Feed title: " + title);
-                    });
+            return ws.url(feedUrl).setRequestFilter(filter).get().thenApply(response ->
+                    ok("Feed title: " + response.asJson().findPath("title").asText())
+            );
         }
         // #ws-request-filter
     }
-
-    // #ws-custom-body-readable
-    public interface URLBodyReadables {
-        default BodyReadable<java.net.URL> url() {
-            return response -> {
-                try {
-                    String s = response.getBody();
-                    return java.net.URI.create(s).toURL();
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-        }
-    }
-    // #ws-custom-body-readable
-
-    // #ws-custom-body-writable
-    public interface URLBodyWritables {
-        default InMemoryBodyWritable body(java.net.URL url) {
-            try {
-                String s = url.toURI().toString();
-                ByteString byteString = ByteString.fromString(s);
-                return new InMemoryBodyWritable(byteString, "text/plain");
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-    // #ws-custom-body-writable
 
     public static class Controller4 extends MockJavaAction {
         private final WSClient ws;

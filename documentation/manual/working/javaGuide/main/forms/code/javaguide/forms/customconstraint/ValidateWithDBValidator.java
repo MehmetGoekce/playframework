@@ -15,7 +15,7 @@ import play.db.Database;
 
 public class ValidateWithDBValidator implements PlayConstraintValidator<ValidateWithDB, ValidatableWithDB<?>> {
 
-    private final Database db;
+    private Database db;
 
     @Inject
     public ValidateWithDBValidator(final Database db) {

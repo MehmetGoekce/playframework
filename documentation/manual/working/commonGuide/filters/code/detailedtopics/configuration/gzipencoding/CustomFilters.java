@@ -12,14 +12,11 @@ import play.mvc.Http;
 import play.mvc.Result;
 
 import javax.inject.Inject;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.BiFunction;
 
 public class CustomFilters implements HttpFilters {
 
-    private List<EssentialFilter> filters;
+    private EssentialFilter[] filters;
 
     @Inject
     public CustomFilters(Materializer materializer) {
@@ -31,11 +28,10 @@ public class CustomFilters implements HttpFilters {
           ), materializer
         );
         //#gzip-filter
-        filters = Collections.singletonList(gzipFilter.asJava());
+        filters = new EssentialFilter[] { gzipFilter.asJava() };
     }
 
-    @Override
-    public List<EssentialFilter> getFilters() {
+    public EssentialFilter[] filters() {
         return filters;
     }
 }

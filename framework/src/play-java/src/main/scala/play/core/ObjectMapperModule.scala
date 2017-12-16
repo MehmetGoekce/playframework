@@ -38,7 +38,7 @@ class ObjectMapperProvider @Inject() (lifecycle: ApplicationLifecycle) extends P
  */
 trait ObjectMapperComponents {
 
-  def applicationLifecycle: ApplicationLifecycle
+  def applicationLifecycle: DefaultApplicationLifecycle
 
   lazy val objectMapper: ObjectMapper = new ObjectMapperProvider(applicationLifecycle).get
 }

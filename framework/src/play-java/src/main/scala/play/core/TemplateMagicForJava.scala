@@ -10,7 +10,7 @@ import play.mvc.Http
 import scala.util.control.NonFatal
 
 /** Defines a magic helper for Play templates in a Java context. */
-object PlayMagicForJava extends JavaImplicitConversions {
+object PlayMagicForJava {
 
   import scala.language.implicitConversions
   import scala.compat.java8.OptionConverters._

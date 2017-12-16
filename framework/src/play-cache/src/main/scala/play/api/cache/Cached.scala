@@ -49,7 +49,7 @@ class Cached @Inject() (cache: AsyncCacheApi)(implicit materializer: Materialize
    * @param key Cache key
    */
   def apply(key: String): CachedBuilder = {
-    apply((_: RequestHeader) => key, duration = 0)
+    apply(_ => key, duration = 0)
   }
 
   /**
@@ -60,16 +60,6 @@ class Cached @Inject() (cache: AsyncCacheApi)(implicit materializer: Materialize
    */
   def apply(key: RequestHeader => String, duration: Int): CachedBuilder = {
     new CachedBuilder(cache, key, { case (_: ResponseHeader) => Duration(duration, SECONDS) })
-  }
-
-  /**
-   * Cache an action.
-   *
-   * @param key Cache key
-   * @param duration Cache duration
-   */
-  def apply(key: RequestHeader => String, duration: Duration): CachedBuilder = {
-    new CachedBuilder(cache, key, { case (_: ResponseHeader) => duration })
   }
 
   /**
@@ -92,22 +82,10 @@ class Cached @Inject() (cache: AsyncCacheApi)(implicit materializer: Materialize
     empty(key).default(duration)
 
   /**
-   * Caches everything for the specified duration
-   */
-  def everything(key: RequestHeader => String, duration: Duration): CachedBuilder =
-    empty(key).default(duration)
-
-  /**
    * Caches the specified status, for the specified number of seconds
    */
   def status(key: RequestHeader => String, status: Int, duration: Int): CachedBuilder =
     empty(key).includeStatus(status, Duration(duration, SECONDS))
-
-  /**
-   * Caches the specified status, for the specified duration
-   */
-  def status(key: RequestHeader => String, status: Int, duration: Duration): CachedBuilder =
-    empty(key).includeStatus(status, duration)
 
   /**
    * Caches the specified status forever
@@ -142,7 +120,7 @@ final class CachedBuilder(
    * Compose the cache with an action
    */
   def build(action: EssentialAction): EssentialAction = EssentialAction { request =>
-    import play.core.Execution.Implicits.trampoline
+    implicit val ec = materializer.executionContext
 
     val resultKey = key(request)
     val etagKey = s"$resultKey-etag"
@@ -177,7 +155,7 @@ final class CachedBuilder(
             val accumulatorResult = action(request)
 
             // Add cache information to the response, so clients can cache its content
-            accumulatorResult.mapFuture(handleResult(_, etagKey, resultKey))
+            accumulatorResult.map(handleResult(_, etagKey, resultKey))
         }
     })
   }
@@ -195,9 +173,7 @@ final class CachedBuilder(
     }
   }
 
-  private def handleResult(result: Result, etagKey: String, resultKey: String): Future[Result] = {
-    import play.core.Execution.Implicits.trampoline
-
+  private def handleResult(result: Result, etagKey: String, resultKey: String): Result = {
     cachingWithEternity.andThen { duration =>
       // Format expiration date according to http standard
       val expirationDate = http.dateFormat.format(Instant.ofEpochMilli(System.currentTimeMillis() + duration.toMillis))
@@ -207,14 +183,13 @@ final class CachedBuilder(
 
       val resultWithHeaders = result.withHeaders(ETAG -> etag, EXPIRES -> expirationDate)
 
-      for {
-        // Cache the new ETAG of the resource
-        _ <- cache.set(etagKey, etag, duration)
-        // Cache the new Result of the resource
-        _ <- cache.set(resultKey, new SerializableResult(resultWithHeaders), duration)
-      } yield resultWithHeaders
+      // Cache the new ETAG of the resource
+      cache.set(etagKey, etag, duration)
+      // Cache the new Result of the resource
+      cache.set(resultKey, new SerializableResult(resultWithHeaders), duration)
 
-    }.applyOrElse(result.header, (_: ResponseHeader) => Future.successful(result))
+      resultWithHeaders
+    }.applyOrElse(result.header, (_: ResponseHeader) => result)
   }
 
   /**
