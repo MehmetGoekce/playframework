@@ -1,6 +1,3 @@
-/*
- * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
- */
 package play.api.mvc
 
 import akka.actor.ActorSystem
@@ -32,7 +29,9 @@ class MaxLengthBodyParserSpec extends Specification with AfterAll {
   implicit val system = ActorSystem()
   import system.dispatcher
   implicit val mat = ActorMaterializer()
-  val parse = PlayBodyParsers()
+  val tempFileCreator = SingletonTemporaryFileCreator
+  val parse = new DefaultPlayBodyParsers(
+    ParserConfiguration(), new DefaultHttpErrorHandler(Environment.simple(), Configuration.empty), mat, tempFileCreator)
 
   override def afterAll: Unit = {
     system.terminate()

@@ -24,4 +24,6 @@ public interface BaseComponents extends ConfigurationComponents {
     ApplicationLifecycle applicationLifecycle();
 
     Router router();
+
+    Injector injector();
 }

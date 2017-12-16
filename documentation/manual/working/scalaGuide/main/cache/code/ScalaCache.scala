@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
  */
@@ -18,7 +19,7 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 @RunWith(classOf[JUnitRunner])
-class ScalaCacheSpec extends AbstractController(Helpers.stubControllerComponents()) with PlaySpecification {
+class ScalaCacheSpec extends PlaySpecification with Controller {
 
   import play.api.cache.AsyncCacheApi
   import play.api.cache.Cached
@@ -53,11 +54,6 @@ class ScalaCacheSpec extends AbstractController(Helpers.stubControllerComponents
       //#remove-value
       val removeResult: Future[Done] = cache.remove("item.key")
       //#remove-value
-
-      //#removeAll-values
-      val removeAllResult: Future[Done] = cache.removeAll()
-      //#removeAll-values
-
       Await.result(removeResult, 1.second)
 
       cache.sync.get[User]("item.key") must beNone
@@ -169,7 +165,7 @@ import play.api.cache._
 import play.api.mvc._
 import javax.inject.Inject
 
-class Application @Inject() (cache: AsyncCacheApi, cc:ControllerComponents) extends AbstractController(cc) {
+class Application @Inject() (cache: AsyncCacheApi) extends Controller {
 
 }
 //#inject
@@ -182,9 +178,8 @@ import play.api.mvc._
 import javax.inject.Inject
 
 class Application @Inject()(
-    @NamedCache("session-cache") sessionCache: AsyncCacheApi,
-    cc: ControllerComponents
-) extends AbstractController(cc) {
+    @NamedCache("session-cache") sessionCache: AsyncCacheApi
+) extends Controller {
 
 }
 //#qualified
@@ -195,12 +190,12 @@ package cachedaction {
 import play.api.cache.Cached
 import javax.inject.Inject
 
-class Application @Inject() (cached: Cached, cc:ControllerComponents) extends AbstractController(cc) {
+class Application @Inject() (cached: Cached) extends Controller {
 
 }
 //#cached-action-app
 
-class Application1 @Inject() (cached: Cached, cc:ControllerComponents)(implicit ec: ExecutionContext) extends AbstractController(cc) {
+class Application1 @Inject() (cached: Cached)(implicit ec: ExecutionContext) extends Controller {
   //#cached-action
   def index = cached("homePage") {
     Action {
@@ -234,7 +229,7 @@ class Application1 @Inject() (cached: Cached, cc:ControllerComponents)(implicit 
   }
   //#cached-action-control
 }
-class Application2 @Inject() (cached: Cached, cc:ControllerComponents) extends AbstractController(cc) {
+class Application2 @Inject() (cached: Cached) extends Controller {
   //#cached-action-control-404
   def get(index: Int) = {
     val caching = cached

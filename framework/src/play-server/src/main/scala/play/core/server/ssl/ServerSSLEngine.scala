@@ -7,10 +7,7 @@ import play.core.server.ServerConfig
 import play.server.api.{ SSLEngineProvider => ScalaSSLEngineProvider }
 import play.server.{ SSLEngineProvider => JavaSSLEngineProvider }
 import java.lang.reflect.Constructor
-
 import play.core.ApplicationProvider
-
-import scala.util.{ Failure, Success }
 
 /**
  * This singleton object looks for a class of {{play.server.api.SSLEngineProvider}} or {{play.server.SSLEngineProvider}}
@@ -38,7 +35,7 @@ object ServerSSLEngine {
         createJavaSSLEngineProvider(s.asInstanceOf[Class[JavaSSLEngineProvider]], serverConfig, applicationProvider)
 
       case _ =>
-        throw new ClassCastException(s"Can't create SSLEngineProvider: ${providerClass} must implement either play.server.api.SSLEngineProvider or play.server.SSLEngineProvider.")
+        throw new ClassCastException("Must define play.server.api.SSLEngineProvider or play.server.SSLEngineProvider as interface!")
     }
   }
 
@@ -50,7 +47,7 @@ object ServerSSLEngine {
     var noArgsConstructor: Constructor[_] = null
     for (constructor <- providerClass.getConstructors) {
       val parameterTypes = constructor.getParameterTypes
-      if (parameterTypes.isEmpty) {
+      if (parameterTypes.length == 0) {
         noArgsConstructor = constructor
       } else if (parameterTypes.length == 1 && classOf[play.server.ApplicationProvider].isAssignableFrom(parameterTypes(0))) {
         providerArgsConstructor = constructor
@@ -61,11 +58,9 @@ object ServerSSLEngine {
       }
     }
 
-    def javaAppProvider: play.server.ApplicationProvider = {
-      applicationProvider.get match {
-        case Success(app) => new play.server.ApplicationProvider(app.asJava)
-        case Failure(ex) => throw new IllegalStateException("No application available to create ApplicationProvider", ex)
-      }
+    def javaAppProvider = {
+      val javaApplication = applicationProvider.get.map(a => a.injector.instanceOf[play.Application]).getOrElse(null)
+      new play.server.ApplicationProvider(javaApplication)
     }
 
     if (serverConfigProviderArgsConstructor != null) {
@@ -88,7 +83,7 @@ object ServerSSLEngine {
     var noArgsConstructor: Constructor[ScalaSSLEngineProvider] = null
     for (constructor <- providerClass.getConstructors) {
       val parameterTypes = constructor.getParameterTypes
-      if (parameterTypes.isEmpty) {
+      if (parameterTypes.length == 0) {
         noArgsConstructor = constructor.asInstanceOf[Constructor[ScalaSSLEngineProvider]]
       } else if (parameterTypes.length == 1 && classOf[ApplicationProvider].isAssignableFrom(parameterTypes(0))) {
         providerArgsConstructor = constructor.asInstanceOf[Constructor[ScalaSSLEngineProvider]]

@@ -5,7 +5,7 @@ package play.api
 
 import play.core.{ DefaultWebCommands, SourceMapper, WebCommands }
 import play.utils.Reflect
-import play.api.inject.ApplicationLifecycle
+import play.api.inject.{ DefaultApplicationLifecycle, Injector, NewInstanceInjector, SimpleInjector }
 import play.api.mvc.{ ControllerComponents, DefaultControllerComponents }
 
 /**
@@ -59,7 +59,7 @@ object ApplicationLoader {
    *                             configuration used by the application, as the ApplicationLoader may, through it's own
    *                             mechanisms, modify it or completely ignore it.
    */
-  final case class Context(environment: Environment, sourceMapper: Option[SourceMapper], webCommands: WebCommands, initialConfiguration: Configuration, lifecycle: ApplicationLifecycle)
+  final case class Context(environment: Environment, sourceMapper: Option[SourceMapper], webCommands: WebCommands, initialConfiguration: Configuration, lifecycle: DefaultApplicationLifecycle)
 
   /**
    * Locate and instantiate the ApplicationLoader.
@@ -85,7 +85,7 @@ object ApplicationLoader {
           override def load(context: ApplicationLoader.Context): Application = {
             val javaContext = new play.ApplicationLoader.Context(context)
             val javaApplication = javaApplicationLoader.load(javaContext)
-            javaApplication.asScala()
+            javaApplication.getWrappedApplication
           }
         }
         new JavaApplicationLoaderAdapter
@@ -109,7 +109,7 @@ object ApplicationLoader {
     initialSettings: Map[String, AnyRef] = Map.empty[String, AnyRef],
     sourceMapper: Option[SourceMapper] = None,
     webCommands: WebCommands = new DefaultWebCommands,
-    lifecycle: ApplicationLifecycle = new DefaultApplicationLifecycle()) = {
+    lifecycle: DefaultApplicationLifecycle = new DefaultApplicationLifecycle()) = {
     val configuration = Configuration.load(environment, initialSettings)
     Context(environment, sourceMapper, webCommands, configuration, lifecycle)
   }
@@ -123,11 +123,14 @@ abstract class BuiltInComponentsFromContext(context: ApplicationLoader.Context) 
   lazy val environment = context.environment
   lazy val sourceMapper = context.sourceMapper
   lazy val webCommands = context.webCommands
-  lazy val applicationLifecycle: ApplicationLifecycle = context.lifecycle
-  def configuration = context.initialConfiguration
+  lazy val configuration = context.initialConfiguration
+  lazy val applicationLifecycle: DefaultApplicationLifecycle = context.lifecycle
 
   lazy val controllerComponents: ControllerComponents = DefaultControllerComponents(
     defaultActionBuilder, playBodyParsers, messagesApi, langs, fileMimeTypes, executionContext
   )
+
+  override lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + router + cookieSigner +
+    csrfTokenSigner + httpConfiguration + tempFileCreator + messagesApi + langs + javaContextComponents + fileMimeTypes
 }
 

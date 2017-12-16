@@ -60,11 +60,9 @@ For example:
 //###replace: package controllers
 package foo.bar.controllers
 
-import javax.inject.Inject
 import play.api.mvc._
 
-class HomeController @Inject()(cc:ControllerComponents)
- extends AbstractController(cc) {
+class HomeController extends Controller {
   ...
 }
 //#controller

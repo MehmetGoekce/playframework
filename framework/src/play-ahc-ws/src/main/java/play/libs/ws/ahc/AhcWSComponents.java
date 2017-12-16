@@ -43,6 +43,8 @@ public interface AhcWSComponents extends WSClientComponents, ConfigurationCompon
 
     ApplicationLifecycle applicationLifecycle();
 
+    ExecutionContext executionContext();
+
     default WSClient wsClient() {
         AsyncHttpClient asyncHttpClient = new AsyncHttpClientProvider(
                 environment().asScala(),

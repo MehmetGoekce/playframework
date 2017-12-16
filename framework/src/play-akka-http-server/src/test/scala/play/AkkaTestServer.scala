@@ -1,15 +1,13 @@
-/*
- * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
- */
 package play
 
 import play.core.server._
 import play.api.routing.sird._
 import play.api.mvc._
 
-object AkkaTestServer extends App {
+import akka._
+import akka.http._
 
-  lazy val Action = new ActionBuilder.IgnoringBody()(_root_.controllers.Execution.trampoline)
+object AkkaTestServer extends App {
 
   val port: Int = 9000
   val server = AkkaHttpServer.fromRouter(ServerConfig(

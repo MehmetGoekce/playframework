@@ -73,25 +73,6 @@ object Router {
     }
   }
 
-  object RequestImplicits {
-    import play.api.mvc.RequestHeader
-
-    implicit class WithHandlerDef(val request: RequestHeader) extends AnyVal {
-      /**
-       * The [[HandlerDef]] representing the routes file entry (if any) on this request.
-       */
-      def handlerDef: Option[HandlerDef] = request.attrs.get(Attrs.HandlerDef)
-
-      /**
-       * Check if the route for this request has the given modifier tag (case insensitive).
-       *
-       * This can be used by a filter to change behavior.
-       */
-      def hasRouteModifier(modifier: String): Boolean =
-        handlerDef.exists(_.modifiers.exists(modifier.equalsIgnoreCase))
-    }
-  }
-
   /**
    * Request attributes used by the router.
    */
@@ -99,7 +80,7 @@ object Router {
     /**
      * Key for the [[HandlerDef]] used to handle the request.
      */
-    val HandlerDef: TypedKey[HandlerDef] = TypedKey("HandlerDef")
+    val HandlerDef = TypedKey[HandlerDef]("HandlerDef")
   }
 
   /** Tags that are added to requests by the router. */

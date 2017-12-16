@@ -1,16 +1,12 @@
-/*
- * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
- */
 package scalaguide.sql
 
-// #inject-controller
-// ###insert: package controllers
 import javax.inject.Inject
 
-import play.api.db._
+import play.api.Play.current
 import play.api.mvc._
+import play.api.db._
 
-class ScalaControllerInject @Inject()(db: Database, val controllerComponents: ControllerComponents) extends BaseController {
+class ScalaControllerInject @Inject()(db: Database) extends Controller {
 
   def index = Action {
     var outString = "Number is "
@@ -29,21 +25,4 @@ class ScalaControllerInject @Inject()(db: Database, val controllerComponents: Co
     Ok(outString)
   }
 
-}
-// #inject-controller
-
-class DatabaseOperations @Inject()(db: Database) {
-
-  // #access-default-database
-  // access "default" database
-  db.withConnection { conn =>
-    // do whatever you need with the connection
-  }
-  // #access-default-database
-
-  // #access-db-connection
-  db.withTransaction { conn =>
-    // do whatever you need with the connection
-  }
-  // #access-db-connection
 }

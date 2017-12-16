@@ -7,9 +7,9 @@ import javax.inject.{ Inject, Provider, Singleton }
 
 import com.typesafe.config.ConfigMemorySize
 import org.apache.commons.codec.digest.DigestUtils
-import play.api._
 import play.api.mvc.Cookie.SameSite
-import play.core.cookie.encoding.{ ClientCookieDecoder, ClientCookieEncoder, ServerCookieDecoder, ServerCookieEncoder }
+import play.api.{ http, _ }
+import play.core.netty.utils.{ ClientCookieDecoder, ClientCookieEncoder, ServerCookieDecoder, ServerCookieEncoder }
 
 import scala.concurrent.duration._
 
@@ -153,17 +153,8 @@ object HttpConfiguration {
   private val logger = Logger(classOf[HttpConfiguration])
   private val httpConfigurationCache = Application.instanceCache[HttpConfiguration]
 
-  private def parseSameSite(config: Configuration, key: String): Option[SameSite] = {
-    config.get[Option[String]](key).flatMap { value =>
-      val result = SameSite.parse(value)
-      if (result.isEmpty) {
-        logger.warn(
-          s"""Assuming $key = null, since "$value" is not a valid SameSite value (${SameSite.values.mkString(", ")})"""
-        )
-      }
-      result
-    }
-  }
+  private implicit val sameSiteConfigLoader: ConfigLoader[Option[SameSite]] =
+    ConfigLoader(_.getString).map(SameSite.parse)
 
   def fromConfiguration(config: Configuration, environment: Environment) = {
 
@@ -206,7 +197,7 @@ object HttpConfiguration {
         maxAge = config.getDeprecated[Option[FiniteDuration]]("play.http.session.maxAge", "session.maxAge"),
         httpOnly = config.getDeprecated[Boolean]("play.http.session.httpOnly", "session.httpOnly"),
         domain = config.getDeprecated[Option[String]]("play.http.session.domain", "session.domain"),
-        sameSite = parseSameSite(config, "play.http.session.sameSite"),
+        sameSite = config.get[Option[SameSite]]("play.http.session.sameSite"),
         path = sessionPath,
         jwt = JWTConfigurationParser(config, "play.http.session.jwt")
       ),
@@ -215,25 +206,18 @@ object HttpConfiguration {
         secure = config.get[Boolean]("play.http.flash.secure"),
         httpOnly = config.get[Boolean]("play.http.flash.httpOnly"),
         domain = config.get[Option[String]]("play.http.flash.domain"),
-        sameSite = parseSameSite(config, "play.http.flash.sameSite"),
+        sameSite = config.get[Option[SameSite]]("play.http.flash.sameSite"),
         path = flashPath,
         jwt = JWTConfigurationParser(config, "play.http.flash.jwt")
       ),
       fileMimeTypes = FileMimeTypesConfiguration(
-        config.get[String]("play.http.fileMimeTypes").split('\n').flatMap { l =>
-          val line = l.trim
-
-          line.splitAt(1) match {
-            case ("", "") => Option.empty[(String, String)] // blank
-            case ("#", _) => Option.empty[(String, String)] // comment
-
-            case _ => // "foo=bar".span(_ != '=') -> (foo,=bar)
-              line.span(_ != '=') match {
-                case (key, v) => Some(key -> v.drop(1)) // '=' prefix
-                case _ => Option.empty[(String, String)] // skip invalid
-              }
-          }
-        }(scala.collection.breakOut)
+        config.get[String]("play.http.fileMimeTypes")
+        .split('\n')
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filter(_ (0) != '#')
+        .map(_.split('='))
+        .map(parts => parts(0) -> parts.drop(1).mkString).toMap
       ),
       secret = getSecretConfiguration(config, environment)
     )

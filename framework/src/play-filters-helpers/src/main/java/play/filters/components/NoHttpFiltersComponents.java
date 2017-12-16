@@ -6,16 +6,14 @@ package play.filters.components;
 import play.components.HttpComponents;
 import play.mvc.EssentialFilter;
 
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Java component to mix in when no default filters should be mixed in to {@link play.BuiltInComponents}.
  *
  * <p>Usage:</p>
  *
  * <pre>
- * public class MyComponents extends BuiltInComponentsFromContext implements NoHttpFiltersComponents {
+ * public class MyComponents extends BuiltInComponentsFromContext
+ *                           implements play.filters.components.NoHttpFiltersComponents {
  *
  *    public MyComponents(ApplicationLoader.Context context) {
  *        super(context);
@@ -26,12 +24,12 @@ import java.util.List;
  * }
  * </pre>
  *
- * @see HttpFiltersComponents#httpFilters()
+ * @see HttpFiltersComponents
  */
 public interface NoHttpFiltersComponents extends HttpComponents {
 
     @Override
-    default List<EssentialFilter> httpFilters() {
-        return Collections.emptyList();
+    default EssentialFilter[] httpFilters() {
+        return new EssentialFilter[]{};
     }
 }

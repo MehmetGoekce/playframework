@@ -57,10 +57,10 @@ object HttpRequestHandler {
 }
 
 object ActionCreator {
-  import play.http.{ ActionCreator, DefaultActionCreator }
+  import play.http.{ ActionCreator, HttpRequestHandlerActionCreator }
 
   def bindingsFromConfiguration(environment: Environment, configuration: Configuration): Seq[Binding[_]] = {
-    Reflect.configuredClass[ActionCreator, ActionCreator, DefaultActionCreator](
+    Reflect.configuredClass[ActionCreator, ActionCreator, HttpRequestHandlerActionCreator](
       environment,
       configuration, "play.http.actionCreator", "ActionCreator").fold(Seq[Binding[_]]()) { either =>
       val impl = either.fold(identity, identity)

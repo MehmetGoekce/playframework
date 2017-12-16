@@ -12,19 +12,20 @@ import scala.util.Properties
 object DevModeBuild {
 
   def jdk7WatchService = Def.setting {
-    FileWatchService.jdk7(Keys.sLog.value)
+    if (Properties.isJavaAtLeast("1.7")) {
+      FileWatchService.jdk7(Keys.sLog.value)
+    } else {
+      println("Not testing JDK7 watch service because we're not on JDK7")
+      FileWatchService.sbt(Keys.pollInterval.value)
+    }
   }
 
   def jnotifyWatchService = Def.setting {
     FileWatchService.jnotify(Keys.target.value)
   }
 
-  // Using 30 max attempts so that we can give more chances to
-  // the file watcher service. This is relevant when using the
-  // default JDK watch service which does uses polling.
-  val MaxAttempts = 30
+  val MaxAttempts = 10
   val WaitTime = 500l
-
   val ConnectTimeout = 10000
   val ReadTimeout = 10000
 
@@ -36,7 +37,7 @@ object DevModeBuild {
       val url = new java.net.URL("http://localhost:9000" + path)
       val conn = url.openConnection().asInstanceOf[java.net.HttpURLConnection]
       conn.setConnectTimeout(ConnectTimeout)
-      conn.setReadTimeout(ReadTimeout)
+      conn.setReadTimeout(ReadTimeout)      
 
       if (status == conn.getResponseCode) {
         messages += s"Resource at $path returned $status as expected"

@@ -4,12 +4,12 @@
 package javaguide.akka;
 
 //#injected
-import akka.actor.AbstractActor;
+import akka.actor.UntypedAbstractActor;
 import com.typesafe.config.Config;
 
 import javax.inject.Inject;
 
-public class ConfiguredActor extends AbstractActor {
+public class ConfiguredActor extends UntypedAbstractActor {
 
     private Config configuration;
 
@@ -19,12 +19,10 @@ public class ConfiguredActor extends AbstractActor {
     }
 
     @Override
-    public Receive createReceive() {
-        return receiveBuilder()
-          .match(ConfiguredActorProtocol.GetConfig.class, message -> {
-              sender().tell(configuration.getString("my.config"), self());
-          })
-          .build();
+    public void onReceive(Object message) throws Exception {
+        if (message instanceof ConfiguredActorProtocol.GetConfig) {
+            sender().tell(configuration.getString("my.config"), self());
+        }
     }
 }
 //#injected

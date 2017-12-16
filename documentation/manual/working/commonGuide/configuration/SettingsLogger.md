@@ -78,7 +78,7 @@ You can provide a default logging configuration by providing a file `conf/logbac
 
 You can also specify a configuration file via a System property.  This is particularly useful for production environments where the configuration file may be managed outside of your application source.
 
-> **Note**: The logging system gives top preference to configuration files specified by system properties, secondly to files in the `conf` directory, and lastly to the default. This allows you to customize your application's logging configuration and still override it for specific environments or developer setups.
+> Note: The logging system gives top preference to configuration files specified by system properties, secondly to files in the `conf` directory, and lastly to the default. This allows you to customize your application's logging configuration and still override it for specific environments or developer setups.
 
 #### Using `-Dlogger.resource`
 
@@ -96,8 +96,6 @@ Specify a configuration file to be loaded from the file system:
 $ start -Dlogger.file=/opt/prod/logger.xml
 ```
 
-> **Note**: To see which file is being used, you can set a system property to debug it: `-Dlogback.debug=true`.
-
 ### Examples
 
 Here's an example of configuration that uses a rolling file appender, as well as a separate appender for outputting an access log:
@@ -106,7 +104,7 @@ Here's an example of configuration that uses a rolling file appender, as well as
 <configuration>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${application.home:-.}/logs/application.log</file>
+        <file>${user.dir}/web/logs/application.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- Daily rollover with compression -->
             <fileNamePattern>application-log-%d{yyyy-MM-dd}.gz</fileNamePattern>
@@ -133,7 +131,7 @@ Here's an example of configuration that uses a rolling file appender, as well as
     </appender>
 
     <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${application.home:-.}/logs/access.log</file>
+        <file>${user.dir}/web/logs/access.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- daily rollover with compression -->
             <fileNamePattern>access-log-%d{yyyy-MM-dd}.gz</fileNamePattern>

@@ -4,6 +4,7 @@
 package javaguide.application.httpfilters;
 
 // #filters
+import play.mvc.EssentialFilter;
 import play.http.DefaultHttpFilters;
 import play.filters.gzip.GzipFilter;
 import javax.inject.Inject;

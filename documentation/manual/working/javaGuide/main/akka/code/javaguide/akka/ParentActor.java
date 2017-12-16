@@ -4,14 +4,13 @@
 package javaguide.akka;
 
 //#injectedparent
-
-import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
+import akka.actor.UntypedAbstractActor;
 import play.libs.akka.InjectedActorSupport;
 
 import javax.inject.Inject;
 
-public class ParentActor extends AbstractActor implements InjectedActorSupport {
+public class ParentActor extends UntypedAbstractActor implements InjectedActorSupport {
 
     private ConfiguredChildActorProtocol.Factory childFactory;
 
@@ -21,17 +20,12 @@ public class ParentActor extends AbstractActor implements InjectedActorSupport {
     }
 
     @Override
-    public Receive createReceive() {
-        return receiveBuilder()
-            .match(ParentActorProtocol.GetChild.class, this::getChild)
-            .build();
+    public void onReceive(Object message) throws Exception {
+        if (message instanceof ParentActorProtocol.GetChild) {
+            String key = ((ParentActorProtocol.GetChild) message).key;
+            ActorRef child = injectedChild(() -> childFactory.create(key), key);
+            sender().tell(child, self());
+        }
     }
-  
-    private void getChild(ParentActorProtocol.GetChild msg) {
-        String key = msg.key;
-        ActorRef child = injectedChild(() -> childFactory.create(key), key);
-        sender().tell(child, self());
-    }
-
 }
 //#injectedparent

@@ -4,10 +4,9 @@
 import BuildSettings._
 import Dependencies._
 import Generators._
-import com.typesafe.tools.mima.plugin.MimaKeys.{mimaPreviousArtifacts, mimaReportBinaryIssues}
+import com.typesafe.tools.mima.plugin.MimaKeys.{ mimaPreviousArtifacts, mimaReportBinaryIssues }
 import interplay.PlayBuildBase.autoImport._
 import sbt.Keys.parallelExecution
-import com.lightbend.sbt.javaagent.JavaAgent.JavaAgentKeys.javaAgents
 import sbt.ScriptedPlugin._
 import sbt._
 
@@ -18,7 +17,7 @@ lazy val BuildLinkProject = PlayNonCrossBuiltProject("Build-Link", "build-link")
 lazy val RunSupportProject = PlaySbtProject("Run-Support", "run-support")
     .settings(
       target := target.value / "run-support",
-      libraryDependencies ++= runSupportDependencies((sbtVersion in pluginCrossBuild).value)
+      libraryDependencies ++= runSupportDependencies
     ).dependsOn(BuildLinkProject)
 
 lazy val RoutesCompilerProject = PlayDevelopmentProject("Routes-Compiler", "routes-compiler")
@@ -41,6 +40,12 @@ lazy val StreamsProject = PlayCrossBuiltProject("Play-Streams", "play-streams")
 
 lazy val PlayExceptionsProject = PlayNonCrossBuiltProject("Play-Exceptions", "play-exceptions")
 
+lazy val PlayNettyUtilsProject = PlayNonCrossBuiltProject("Play-Netty-Utils", "play-netty-utils")
+    .settings(
+      javacOptions in(Compile, doc) += "-Xdoclint:none",
+      libraryDependencies ++= nettyUtilsDependencies
+    )
+
 lazy val PlayJodaFormsProject = PlayCrossBuiltProject("Play-Joda-Forms", "play-joda-forms")
     .settings(
       libraryDependencies ++= joda
@@ -50,14 +55,9 @@ lazy val PlayJodaFormsProject = PlayCrossBuiltProject("Play-Joda-Forms", "play-j
 lazy val PlayProject = PlayCrossBuiltProject("Play", "play")
     .enablePlugins(SbtTwirl)
     .settings(
-      libraryDependencies ++= runtime(scalaVersion.value) ++ scalacheckDependencies ++ cookieEncodingDependencies,
+      libraryDependencies ++= runtime(scalaVersion.value) ++ scalacheckDependencies,
 
-      sourceGenerators in Compile += Def.task(PlayVersion(
-        version.value,
-        scalaVersion.value,
-        sbtVersion.value,
-        jettyAlpnAgent.revision,
-        (sourceManaged in Compile).value)).taskValue,
+      sourceGenerators in Compile += Def.task(PlayVersion(version.value, scalaVersion.value, sbtVersion.value, (sourceManaged in Compile).value)).taskValue,
 
       sourceDirectories in(Compile, TwirlKeys.compileTemplates) := (unmanagedSourceDirectories in Compile).value,
       TwirlKeys.templateImports += "play.api.templates.PlayMagic._",
@@ -78,6 +78,7 @@ lazy val PlayProject = PlayCrossBuiltProject("Play", "play")
     ).settings(Docs.playdocSettings: _*)
     .dependsOn(
       BuildLinkProject,
+      PlayNettyUtilsProject,
       StreamsProject
     )
 
@@ -96,10 +97,16 @@ import AkkaDependency._
 lazy val PlayAkkaHttpServerProject = PlayCrossBuiltProject("Play-Akka-Http-Server", "play-akka-http-server")
     .dependsOn(PlayServerProject, StreamsProject)
     .dependsOn(PlayGuiceProject % "test")
+    .settings(
+      resolvers += "Akka Snapshot Repository" at "http://repo.akka.io/snapshots/"
+    )
     .addAkkaModuleDependency("akka-http-core")
 
 lazy val PlayAkkaHttp2SupportProject = PlayCrossBuiltProject("Play-Akka-Http2-Support", "play-akka-http2-support")
     .dependsOn(PlayAkkaHttpServerProject)
+    .settings(
+      resolvers += "Akka Snapshot Repository" at "http://repo.akka.io/snapshots/"
+    )
     .addAkkaModuleDependency("akka-http2-support")
 
 lazy val PlayJdbcApiProject = PlayCrossBuiltProject("Play-JDBC-Api", "play-jdbc-api")
@@ -173,13 +180,8 @@ lazy val PlayGuiceProject = PlayCrossBuiltProject("Play-Guice", "play-guice")
 
 lazy val SbtPluginProject = PlaySbtPluginProject("SBT-Plugin", "sbt-plugin")
     .settings(
-      libraryDependencies ++= sbtDependencies((sbtVersion in pluginCrossBuild).value, scalaVersion.value),
-      sourceGenerators in Compile += Def.task(PlayVersion(
-        version.value,
-        (scalaVersion in PlayProject).value,
-        sbtVersion.value,
-        jettyAlpnAgent.revision,
-        (sourceManaged in Compile).value)).taskValue,
+      libraryDependencies ++= sbtDependencies(sbtVersion.value, scalaVersion.value),
+      sourceGenerators in Compile += Def.task(PlayVersion(version.value, (scalaVersion in PlayProject).value, sbtVersion.value, (sourceManaged in Compile).value)).taskValue,
 
       // This only publishes the sbt plugin projects on each scripted run.
       // The runtests script does a full publish before running tests.
@@ -235,13 +237,10 @@ lazy val PlayFiltersHelpersProject = PlayCrossBuiltProject("Filters-Helpers", "p
 
 // This project is just for testing Play, not really a public artifact
 lazy val PlayIntegrationTestProject = PlayCrossBuiltProject("Play-Integration-Test", "play-integration-test")
-    .enablePlugins(JavaAgent)
     .settings(
-      libraryDependencies += okHttp % Test,
+      libraryDependencies += h2database % Test,
       parallelExecution in Test := false,
-      mimaPreviousArtifacts := Set.empty,
-      fork in Test := true,
-      javaAgents += jettyAlpnAgent % "test"
+      mimaPreviousArtifacts := Set.empty
     )
     .dependsOn(
       PlayProject % "test->test",
@@ -254,11 +253,9 @@ lazy val PlayIntegrationTestProject = PlayCrossBuiltProject("Play-Integration-Te
     .dependsOn(PlayJavaProject)
     .dependsOn(PlayJavaFormsProject)
     .dependsOn(PlayAkkaHttpServerProject)
-    .dependsOn(PlayAkkaHttp2SupportProject)
     .dependsOn(PlayNettyServerProject)
 
-// This project is just for microbenchmarking Play. Not published.
-// NOTE: this project depends on JMH, which is GPLv2.
+// This project is just for microbenchmarking Play, not really a public artifact
 lazy val PlayMicrobenchmarkProject = PlayCrossBuiltProject("Play-Microbenchmark", "play-microbenchmark")
     .enablePlugins(JmhPlugin)
     .settings(
@@ -325,6 +322,7 @@ lazy val publishedProjects = Seq[ProjectReference](
   PlayJodaFormsProject,
   PlayJavaJdbcProject,
   PlayJpaProject,
+  PlayNettyUtilsProject,
   PlayNettyServerProject,
   PlayServerProject,
   PlayLogback,
@@ -339,13 +337,13 @@ lazy val publishedProjects = Seq[ProjectReference](
   PlayDocsProject,
   PlayFiltersHelpersProject,
   PlayIntegrationTestProject,
+  PlayMicrobenchmarkProject,
   PlayDocsSbtPlugin,
   StreamsProject
 )
 
 lazy val PlayFramework = Project("Play-Framework", file("."))
     .enablePlugins(PlayRootProject)
-    .enablePlugins(PlayWhitesourcePlugin)
     .enablePlugins(CrossPerProjectPlugin)
     .settings(playCommonSettings: _*)
     .settings(
@@ -356,8 +354,6 @@ lazy val PlayFramework = Project("Play-Framework", file("."))
       Docs.apiDocsInclude := false,
       Docs.apiDocsIncludeManaged := false,
       mimaReportBinaryIssues := (),
-      commands += Commands.quickPublish,
-      whitesourceAggregateProjectName := "playframework-master",
-      whitesourceAggregateProjectToken := "f21388d8-a520-4d3a-afbd-b5cadcea0a6d"
+      commands += Commands.quickPublish
     ).settings(Release.settings: _*)
     .aggregate(publishedProjects: _*)

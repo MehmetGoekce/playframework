@@ -7,7 +7,7 @@ import java.security.cert.X509Certificate
 
 import play.api.http.{ HeaderNames, MediaRange, MediaType }
 import play.api.i18n.Lang
-import play.api.libs.typedmap.{ TypedKey, TypedMap }
+import play.api.libs.typedmap.{ TypedEntry, TypedKey, TypedMap }
 import play.api.mvc.request._
 
 import scala.annotation.implicitNotFound
@@ -336,7 +336,6 @@ trait RequestHeader {
     method + " " + uri
   }
 
-  def asJava: play.mvc.Http.RequestHeader = new play.core.j.RequestHeaderImpl(this)
 }
 
 object RequestHeader {

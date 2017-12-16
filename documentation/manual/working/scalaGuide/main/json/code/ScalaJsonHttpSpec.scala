@@ -3,12 +3,12 @@
  */
 package scalaguide.json
 
-import javax.inject.Inject
-
 import scala.concurrent.Future
+
 import org.junit.runner.RunWith
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
+
 import play.api.mvc._
 import play.api.test._
 
@@ -104,7 +104,7 @@ class ScalaJsonHttpSpec extends PlaySpecification with Results {
       contentAsString(result) === """{"status":"OK","message":"Place 'Nuthanger Farm' saved."}"""
     }
 
-    "allow handling JSON with BodyParser" in new WithApplication() with Injecting {
+    "allow handling JSON with BodyParser" in {
 
       import play.api.libs.json._
       import play.api.libs.functional.syntax._
@@ -119,10 +119,8 @@ class ScalaJsonHttpSpec extends PlaySpecification with Results {
         (JsPath \ "location").read[Location]
       )(Place.apply _)
 
-      val parse = inject[PlayBodyParsers]
-
       //#handle-json-bodyparser
-      def savePlace = Action(parse.json) { request =>
+      def savePlace = Action(BodyParsers.parse.json) { request =>
         val placeResult = request.body.validate[Place]
         placeResult.fold(
           errors => {
@@ -153,10 +151,8 @@ class ScalaJsonHttpSpec extends PlaySpecification with Results {
       contentAsString(result) === """{"status":"OK","message":"Place 'Nuthanger Farm' saved."}"""
     }
 
-    "allow concise handling JSON with BodyParser" in new WithApplication() with Injecting {
+    "allow concise handling JSON with BodyParser" in {
       import scala.concurrent.ExecutionContext.Implicits.global
-
-      val parse = inject[PlayBodyParsers]
 
       //#handle-json-bodyparser-concise
       import play.api.libs.json._
@@ -175,7 +171,7 @@ class ScalaJsonHttpSpec extends PlaySpecification with Results {
 
       // This helper parses and validates JSON using the implicit `placeReads`
       // above, returning errors if the parsed json fails validation.
-      def validateJson[A : Reads] = parse.json.validate(
+      def validateJson[A : Reads] = BodyParsers.parse.json.validate(
         _.validate[A].asEither.left.map(e => BadRequest(JsError.toJson(e)))
       )
 
@@ -241,7 +237,7 @@ import play.api.mvc._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 
-class HomeController @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+class HomeController extends Controller {
 
 }
 //#controller

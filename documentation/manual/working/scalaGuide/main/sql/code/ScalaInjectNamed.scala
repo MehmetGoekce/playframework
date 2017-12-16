@@ -1,20 +1,11 @@
-/*
- * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
- */
 package scalaguide.sql
 
-// #named-database
-// ###insert: package controllers
 import javax.inject.Inject
-
-import play.api.mvc.{BaseController, ControllerComponents}
-import play.api.db.{Database, NamedDatabase}
+import play.api.db.{ Database, NamedDatabase }
+import play.api.mvc.Controller
 
 // inject "orders" database instead of "default"
 class ScalaInjectNamed @Inject()(
-  @NamedDatabase("orders") db: Database,
-  val controllerComponents: ControllerComponents
-) extends BaseController {
+  @NamedDatabase("orders") db: Database) extends Controller {
   // do whatever you need with the db
 }
-// #named-database

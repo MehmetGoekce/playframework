@@ -4,15 +4,13 @@
 package play.filters.cors
 
 import akka.stream.Materializer
-import akka.util.ByteString
 import play.api.http.{ DefaultHttpErrorHandler, HttpErrorHandler }
 import play.core.j.{ JavaContextComponents, JavaHttpErrorHandlerAdapter }
 
 import scala.concurrent.Future
+
 import play.api.Logger
-import play.api.libs.streams.Accumulator
-import play.api.libs.typedmap.TypedKey
-import play.api.mvc._
+import play.api.mvc.{ Filter, RequestHeader, Result }
 
 /**
  * A play.api.mvc.Filter that implements Cross-Origin Resource Sharing (CORS)
@@ -41,22 +39,20 @@ import play.api.mvc._
 class CORSFilter(
     override protected val corsConfig: CORSConfig = CORSConfig(),
     override protected val errorHandler: HttpErrorHandler = DefaultHttpErrorHandler,
-    private val pathPrefixes: Seq[String] = Seq("/")) extends EssentialFilter with AbstractCORSPolicy {
+    private val pathPrefixes: Seq[String] = Seq("/"))(override implicit val mat: Materializer) extends Filter with AbstractCORSPolicy {
 
   // Java constructor
-  def this(corsConfig: CORSConfig, errorHandler: play.http.HttpErrorHandler, pathPrefixes: java.util.List[String], contextComponents: JavaContextComponents) = {
-    this(corsConfig, new JavaHttpErrorHandlerAdapter(errorHandler, contextComponents), Seq(pathPrefixes.toArray.asInstanceOf[Array[String]]: _*))
+  def this(corsConfig: CORSConfig, errorHandler: play.http.HttpErrorHandler, pathPrefixes: java.util.List[String], contextComponents: JavaContextComponents)(mat: Materializer) = {
+    this(corsConfig, new JavaHttpErrorHandlerAdapter(errorHandler, contextComponents), Seq(pathPrefixes.toArray.asInstanceOf[Array[String]]: _*))(mat)
   }
 
   override protected val logger = Logger(classOf[CORSFilter])
 
-  override def apply(next: EssentialAction): EssentialAction = new EssentialAction {
-    override def apply(request: RequestHeader): Accumulator[ByteString, Result] = {
-      if (pathPrefixes.exists(request.path.startsWith)) {
-        filterRequest(next, request)
-      } else {
-        next(request)
-      }
+  override def apply(f: RequestHeader => Future[Result])(request: RequestHeader): Future[Result] = {
+    if (pathPrefixes.exists(request.path.startsWith)) {
+      filterRequest(f, request)
+    } else {
+      f(request)
     }
   }
 }
@@ -64,10 +60,6 @@ class CORSFilter(
 object CORSFilter {
 
   val RequestTag = "CORS_REQUEST"
-
-  object Attrs {
-    val Origin: TypedKey[String] = TypedKey("CORS_ORIGIN")
-  }
 
   def apply(corsConfig: CORSConfig = CORSConfig(), errorHandler: HttpErrorHandler = DefaultHttpErrorHandler,
     pathPrefixes: Seq[String] = Seq("/"))(implicit mat: Materializer) =

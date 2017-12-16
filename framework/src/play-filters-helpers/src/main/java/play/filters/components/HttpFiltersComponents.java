@@ -6,9 +6,6 @@ package play.filters.components;
 import play.components.HttpComponents;
 import play.mvc.EssentialFilter;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  * A compile time default filters components.
  *
@@ -39,11 +36,11 @@ public interface HttpFiltersComponents extends
         HttpComponents {
 
     @Override
-    default List<EssentialFilter> httpFilters() {
-        return Arrays.asList(
+    default EssentialFilter[] httpFilters() {
+        return new EssentialFilter[] {
             csrfFilter().asJava(),
             securityHeadersFilter().asJava(),
             allowedHostsFilter().asJava()
-        );
+        };
     }
 }

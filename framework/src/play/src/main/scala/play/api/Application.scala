@@ -19,7 +19,7 @@ import play.api.libs.crypto._
 import play.api.mvc._
 import play.api.mvc.request.{ DefaultRequestFactory, RequestFactory }
 import play.api.routing.Router
-import play.core.j.{ JavaContextComponents, JavaHelpers }
+import play.core.j.JavaHelpers
 import play.core.{ SourceMapper, WebCommands }
 import play.utils._
 
@@ -185,8 +185,7 @@ trait Application {
   def stop(): Future[_]
 
   /**
-   * Get the runtime injector for this application. In a runtime dependency injection based application, this can be
-   * used to obtain components as bound by the DI framework.
+   * Get the injector for this application.
    *
    * @return The injector.
    */
@@ -258,26 +257,13 @@ trait BuiltInComponents extends I18nComponents {
   def sourceMapper: Option[SourceMapper]
   def webCommands: WebCommands
   def configuration: Configuration
-  def applicationLifecycle: ApplicationLifecycle
+  def applicationLifecycle: DefaultApplicationLifecycle
 
   def router: Router
 
-  /**
-   * The runtime [[Injector]] instance provided to the [[DefaultApplication]]. This injector is set up to allow
-   * existing (deprecated) legacy APIs to function. It is not set up to support injecting arbitrary Play components.
-   */
-  lazy val injector: Injector = {
-    val simple = new SimpleInjector(NewInstanceInjector) +
-      cookieSigner + // play.api.libs.Crypto (for cookies)
-      httpConfiguration + // play.api.mvc.BodyParsers trait
-      tempFileCreator + // play.api.libs.TemporaryFileCreator object
-      messagesApi + // play.api.i18n.Messages object
-      langs // play.api.i18n.Langs object
-    new ContextClassLoaderInjector(simple, environment.classLoader)
-  }
+  lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + router + cookieSigner + csrfTokenSigner + httpConfiguration + tempFileCreator + fileMimeTypes
 
-  lazy val playBodyParsers: PlayBodyParsers =
-    PlayBodyParsers(tempFileCreator, httpErrorHandler, httpConfiguration.parser)(materializer)
+  lazy val playBodyParsers: PlayBodyParsers = PlayBodyParsers(httpConfiguration.parser, httpErrorHandler, materializer, tempFileCreator)
   lazy val defaultBodyParser: BodyParser[AnyContent] = playBodyParsers.default
   lazy val defaultActionBuilder: DefaultActionBuilder = DefaultActionBuilder(defaultBodyParser)
 
@@ -336,29 +322,11 @@ trait BuiltInComponents extends I18nComponents {
 
   lazy val fileMimeTypes: FileMimeTypes = new DefaultFileMimeTypesProvider(httpConfiguration.fileMimeTypes).get
 
-  lazy val javaContextComponents: JavaContextComponents = JavaHelpers.createContextComponents(messagesApi, langs, fileMimeTypes, httpConfiguration)
-
-  // NOTE: the following helpers are declared as protected since they are only meant to be used inside BuiltInComponents
-  // This also makes them not conflict with other methods of the same type when used with Macwire.
-
-  /**
-   * Alias method to [[defaultActionBuilder]]. This just helps to keep the idiom of using `Action`
-   * when creating `Router`s using the built in components.
-   *
-   * @return the default action builder.
-   */
-  protected def Action: DefaultActionBuilder = defaultActionBuilder
-
-  /**
-   * Alias method to [[playBodyParsers]].
-   */
-  protected def parse: PlayBodyParsers = playBodyParsers
+  lazy val javaContextComponents = JavaHelpers.createContextComponents(messagesApi, langs, fileMimeTypes, httpConfiguration)
 }
 
 /**
  * A component to mix in when no default filters should be mixed in to BuiltInComponents.
- *
- * @see [[BuiltInComponents.httpFilters]]
  */
 trait NoHttpFiltersComponents {
   val httpFilters: Seq[EssentialFilter] = Nil

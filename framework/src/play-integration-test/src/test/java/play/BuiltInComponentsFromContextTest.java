@@ -8,10 +8,7 @@ import org.junit.Test;
 import play.api.http.HttpConfiguration;
 import play.components.BodyParserComponents;
 import play.filters.components.HttpFiltersComponents;
-import play.mvc.EssentialFilter;
-import play.mvc.Http;
-import play.mvc.Result;
-import play.mvc.Results;
+import play.mvc.*;
 import play.routing.Router;
 import play.routing.RoutingDsl;
 import play.test.Helpers;
@@ -60,7 +57,8 @@ public class BuiltInComponentsFromContextTest {
 
     @Test
     public void shouldProvideDefaultFilters() {
-        assertThat(this.componentsFromContext.httpFilters().isEmpty(), is(false));
+        List<EssentialFilter> filters = Arrays.asList(this.componentsFromContext.httpFilters());
+        assertThat(filters.isEmpty(), is(false));
     }
 
     @Test
@@ -151,41 +149,41 @@ public class BuiltInComponentsFromContextTest {
 
     @Test
     public void actorSystemMustBeASingleton() {
-        assertThat(this.componentsFromContext.actorSystem(), sameInstance(this.componentsFromContext.actorSystem()));
+        assertThat(this.componentsFromContext.actorSystem(), equalTo(this.componentsFromContext.actorSystem()));
     }
 
     @Test
     public void applicationMustBeASingleton() {
-        assertThat(this.componentsFromContext.application(), sameInstance(this.componentsFromContext.application()));
+        assertThat(this.componentsFromContext.application(), equalTo(this.componentsFromContext.application()));
     }
 
     @Test
     public void langsMustBeASingleton() {
-        assertThat(this.componentsFromContext.langs(), sameInstance(this.componentsFromContext.langs()));
+        assertThat(this.componentsFromContext.langs(), equalTo(this.componentsFromContext.langs()));
     }
 
     @Test
     public void fileMimeTypesMustBeASingleton() {
-        assertThat(this.componentsFromContext.fileMimeTypes(), sameInstance(this.componentsFromContext.fileMimeTypes()));
+        assertThat(this.componentsFromContext.fileMimeTypes(), equalTo(this.componentsFromContext.fileMimeTypes()));
     }
 
     @Test
     public void httpRequestHandlerMustBeASingleton() {
-        assertThat(this.componentsFromContext.httpRequestHandler(), sameInstance(this.componentsFromContext.httpRequestHandler()));
+        assertThat(this.componentsFromContext.httpRequestHandler(), equalTo(this.componentsFromContext.httpRequestHandler()));
     }
 
     @Test
     public void cookieSignerMustBeASingleton() {
-        assertThat(this.componentsFromContext.cookieSigner(), sameInstance(this.componentsFromContext.cookieSigner()));
+        assertThat(this.componentsFromContext.cookieSigner(), equalTo(this.componentsFromContext.cookieSigner()));
     }
 
     @Test
     public void csrfTokenSignerMustBeASingleton() {
-        assertThat(this.componentsFromContext.csrfTokenSigner(), sameInstance(this.componentsFromContext.csrfTokenSigner()));
+        assertThat(this.componentsFromContext.csrfTokenSigner(), equalTo(this.componentsFromContext.csrfTokenSigner()));
     }
 
     @Test
     public void temporaryFileCreatorMustBeASingleton() {
-        assertThat(this.componentsFromContext.tempFileCreator(), sameInstance(this.componentsFromContext.tempFileCreator()));
+        assertThat(this.componentsFromContext.tempFileCreator(), equalTo(this.componentsFromContext.tempFileCreator()));
     }
 }

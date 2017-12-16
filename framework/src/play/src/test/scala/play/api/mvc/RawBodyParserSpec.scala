@@ -3,24 +3,27 @@
  */
 package play.api.mvc
 
-import java.io.IOException
-
+import akka.util.ByteString
+import akka.stream.scaladsl.Source
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Source
-import akka.util.ByteString
+import java.io.IOException
+
 import org.specs2.mutable.Specification
 import org.specs2.specification.AfterAll
+import play.api.{ Configuration, Environment }
+import play.api.http.{ DefaultHttpErrorHandler, ParserConfiguration }
+import play.api.libs.Files.SingletonTemporaryFileCreator
 import play.core.test.FakeRequest
-import play.api.http.ParserConfiguration
 
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.Future
+import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class RawBodyParserSpec extends Specification with AfterAll {
 
-  implicit val system = ActorSystem("raw-body-parser-spec")
-  implicit val materializer = ActorMaterializer()
+  implicit val system = ActorSystem("content-types-spec")
+  implicit val materializer = ActorMaterializer()(system)
 
   def afterAll(): Unit = {
     materializer.shutdown()
@@ -28,7 +31,9 @@ class RawBodyParserSpec extends Specification with AfterAll {
   }
 
   val config = ParserConfiguration()
-  val parse = PlayBodyParsers()
+  val errorHandler = new DefaultHttpErrorHandler(Environment.simple(), Configuration.empty)
+  val tempFileCreator = SingletonTemporaryFileCreator
+  val parse = PlayBodyParsers(config, errorHandler, materializer, tempFileCreator)
 
   def parse(body: ByteString, memoryThreshold: Int = config.maxMemoryBuffer, maxLength: Long = config.maxDiskBuffer)(parser: BodyParser[RawBuffer] = parse.raw(memoryThreshold, maxLength)): Either[Result, RawBuffer] = {
     val request = FakeRequest(method = "GET", "/x")
@@ -37,17 +42,6 @@ class RawBodyParserSpec extends Specification with AfterAll {
   }
 
   "Raw Body Parser" should {
-    "parse a strict body" >> {
-      val body = ByteString("lorem ipsum")
-      // Feed a strict element rather than a singleton source, strict element triggers
-      // fast path with zero materialization.
-      Await.result(parse.raw.apply(FakeRequest()).run(body), Duration.Inf) must beRight.like {
-        case rawBuffer => rawBuffer.asBytes() must beSome.like {
-          case outBytes => outBytes mustEqual body
-        }
-      }
-    }
-
     "parse a simple body" >> {
       val body = ByteString("lorem ipsum")
 

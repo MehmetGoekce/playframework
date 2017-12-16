@@ -15,7 +15,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.Function;
 
 /**
  * Defines several security helpers.
@@ -42,25 +41,17 @@ public class Security {
      */
     public static class AuthenticatedAction extends Action<Authenticated> {
 
-        private final Function<Authenticated, Authenticator> configurator;
+        private final Injector injector;
 
         @Inject
         public AuthenticatedAction(Injector injector) {
-            this(authenticated -> injector.instanceOf(authenticated.value()));
-        }
-
-        public AuthenticatedAction(Authenticator authenticator) {
-            this(authenticated -> authenticator);
-        }
-
-        public AuthenticatedAction(Function<Authenticated, Authenticator> configurator) {
-            this.configurator = configurator;
+            this.injector = injector;
         }
 
         public CompletionStage<Result> call(final Context ctx) {
-            Authenticator authenticator = configurator.apply(configuration);
+            Authenticator authenticator = injector.instanceOf(configuration.value());
             String username = authenticator.getUsername(ctx);
-            if (username == null) {
+            if(username == null) {
                 Result unauthorized = authenticator.onUnauthorized(ctx);
                 return CompletableFuture.completedFuture(unauthorized);
             } else {

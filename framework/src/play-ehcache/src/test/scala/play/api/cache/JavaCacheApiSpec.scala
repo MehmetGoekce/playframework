@@ -30,13 +30,6 @@ class JavaCacheApiSpec(implicit ee: ExecutionEnv) extends PlaySpecification {
       Thread.sleep(2.seconds.toMillis)
       cacheApi.get[String]("foo").toScala must beNull.await
     }
-    "set cache values with an expiration time" in new WithApplication {
-      val cacheApi = app.injector.instanceOf[JavaAsyncCacheApi]
-      Await.result(cacheApi.set("foo", "bar", 10 /* seconds */ ).toScala, 1.second)
-
-      Thread.sleep(2.seconds.toMillis)
-      cacheApi.get[String]("foo").toScala must beEqualTo("bar").await
-    }
     "get or update" should {
       "get value when it exists" in new WithApplication {
         val cacheApi = app.injector.instanceOf[JavaAsyncCacheApi]
@@ -72,15 +65,6 @@ class JavaCacheApiSpec(implicit ee: ExecutionEnv) extends PlaySpecification {
       Await.result(cacheApi.remove("foo").toScala, 1.second)
       cacheApi.get[String]("foo").toScala must beNull.await
     }
-
-    "remove all values from cache" in new WithApplication {
-      val cacheApi = app.injector.instanceOf[JavaAsyncCacheApi]
-      Await.result(cacheApi.set("foo", "bar").toScala, 1.second)
-      cacheApi.get[String]("foo").toScala must beEqualTo("bar").await
-
-      Await.result(cacheApi.removeAll().toScala, 1.second)
-      cacheApi.get[String]("foo").toScala must beNull.await
-    }
   }
 
   "Java SyncCacheApi" should {
@@ -95,13 +79,6 @@ class JavaCacheApiSpec(implicit ee: ExecutionEnv) extends PlaySpecification {
 
       Thread.sleep(2.seconds.toMillis)
       cacheApi.get[String]("foo") must beNull
-    }
-    "set cache values with an expiration time" in new WithApplication {
-      val cacheApi = app.injector.instanceOf[JavaSyncCacheApi]
-      cacheApi.set("foo", "bar", 10 /* seconds */ )
-
-      Thread.sleep(2.seconds.toMillis)
-      cacheApi.get[String]("foo") must beEqualTo("bar")
     }
     "get or update" should {
       "get value when it exists" in new WithApplication {

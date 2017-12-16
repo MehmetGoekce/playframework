@@ -55,17 +55,9 @@ You can also supply a `Callable` that generates stores the value if no value is 
 
 @[get-or-else](code/javaguide/cache/JavaCache.java)
 
-**Note**: `getOrElseUpdate` is not an atomic operation in Ehcache and is implemented as a `get` followed by computing the value from the `Callable`, then a `set`. This means it's possible for the value to be computed multiple times if multiple threads are calling `getOrElse` simultaneously.
-
 To remove an item from the cache use the `remove` method:
 
 @[remove](code/javaguide/cache/JavaCache.java)
-
-To remove all items from the cache use the `removeAll` method:
-
-@[removeAll](code/javaguide/cache/JavaCache.java)
-
-`removeAll()` is only available on `AsyncCacheApi`, since removing all elements of the cache is rarely something you want to do sychronously. The expectation is that removing all items from the cache should only be needed as an admin operation in special cases, not part of the normal operation of your app.
 
 Note that the [SyncCacheApi](api/java/play/cache/SyncCacheApi.html) has the same API, except it returns the values directly instead of using futures.
 
@@ -84,25 +76,6 @@ By default, Play will try to create these caches for you. If you would like to d
 Now to access these different caches, when you inject them, use the [NamedCache](api/java/play/cache/NamedCache.html) qualifier on your dependency, for example:
 
 @[qualified](code/javaguide/cache/qualified/Application.java)
-
-## Setting the execution context
-
-By default, all Ehcache operations are blocking, and async implementations will block threads in the default execution context.
-Usually this is okay if you are using Play's default configuration, which only stores elements in memory since reads should be relatively fast.
-However, depending on how EhCache was configured and [where the data is stored](http://www.ehcache.org/generated/2.10.4/html/ehc-all/#page/Ehcache_Documentation_Set%2Fco-store_storage_tiers.html), this blocking I/O might be too costly.
-For such a case you can configure a different [Akka dispatcher](http://doc.akka.io/docs/akka/current/scala/dispatchers.html#looking-up-a-dispatcher) and set it via `play.cache.dispatcher` so the EhCache plugin makes use of it:
-
-```
-play.cache.dispatcher = "contexts.blockingCacheDispatcher"
-
-contexts {
-  blockingCacheDispatcher {
-    fork-join-executor {
-      parallelism-factor = 3.0
-    }
-  }
-}
-```
 
 ## Caching HTTP responses
 
@@ -125,7 +98,5 @@ play.modules.disabled += "play.api.cache.ehcache.EhCacheModule"
 ```
 
 You can then implement [AsyncCacheApi](api/java/play/cache/AsyncCacheApi.html) and bind it in the DI container. You can also bind [SyncCacheApi](api/java/play/cache/SyncCacheApi.html) to [DefaultSyncCacheApi](api/java/play/cache/DefaultSyncCacheApi.html), which simply wraps the async implementation.
-
-Note that the `removeAll` method may not be supported by your cache implementation, either because it is not possible or because it would be unnecessarily inefficient. If that is the case, you can throw an `UnsupportedOperationException` in the `removeAll` method.
 
 To provide an implementation of the cache API in addition to the default implementation, you can either create a custom qualifier, or reuse the `NamedCache` qualifier to bind the implementation.

@@ -13,13 +13,11 @@ import play.api.routing.Router
 
 package controllers {
 
-  import javax.inject.Inject
-
   object Client {
     def findById(id: Long) = Some("showing client " + id)
   }
 
-  class Clients @Inject()(cc:ControllerComponents) extends AbstractController(cc) {
+  class Clients extends Controller {
 
     // #show-client-action
     def show(id: Long) = Action {
@@ -32,7 +30,7 @@ package controllers {
     def list() = Action(Ok("all clients"))
   }
 
-  class Application @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+  class Application extends Controller {
     def download(name: String) = Action(Ok("download " + name))
     def homePage() = Action(Ok("home page"))
 
@@ -47,13 +45,12 @@ package controllers {
     // #show-page-action
   }
 
-  class Items @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+  class Items extends Controller {
     def show(id: Long) = Action(Ok("showing item " + id))
   }
 
-  class Api @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+  class Api extends Controller {
     def list(version: Option[String]) = Action(Ok("version " + version))
-    def newThing = Action(parse.json) { request => Ok(request.body) }
   }
 }
 
@@ -70,10 +67,7 @@ package fixed {
 }
 
 package defaultvalue.controllers {
-
-  import javax.inject.Inject
-
-  class Clients @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+  class Clients extends Controller {
     def list(page: Int) = Action(Ok("clients page " + page))
   }
 }
@@ -86,12 +80,10 @@ package defaultcontroller.controllers {
 // ###replace: package controllers
 package reverse.controllers {
 
-import javax.inject.Inject
-
 import play.api._
 import play.api.mvc._
 
-class Application @Inject()(cc:ControllerComponents) extends AbstractController(cc)  {
+class Application extends Controller {
 
   def hello(name: String) = Action {
     Ok("Hello " + name + "!")

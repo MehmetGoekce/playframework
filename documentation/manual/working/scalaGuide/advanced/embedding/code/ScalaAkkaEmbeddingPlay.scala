@@ -17,13 +17,9 @@ class ScalaAkkaEmbeddingPlay extends Specification with WsTestClient {
       import play.api.routing.sird._
       import play.core.server.AkkaHttpServer
 
-      val server = AkkaHttpServer.fromRouterWithComponents() { components =>
-        import Results._
-        import components.{ defaultActionBuilder => Action }
-        {
-          case GET(p"/hello/$to") => Action {
-            Ok(s"Hello $to")
-          }
+      val server = AkkaHttpServer.fromRouter() {
+        case GET(p"/hello/$to") => Action {
+          Results.Ok(s"Hello $to")
         }
       }
 
@@ -43,16 +39,12 @@ class ScalaAkkaEmbeddingPlay extends Specification with WsTestClient {
       import play.api.routing.sird._
       import play.core.server.{AkkaHttpServer, _}
 
-      val server = AkkaHttpServer.fromRouterWithComponents(ServerConfig(
+      val server = AkkaHttpServer.fromRouter(ServerConfig(
         port = Some(19000),
         address = "127.0.0.1"
-      )) { components =>
-        import Results._
-        import components.{ defaultActionBuilder => Action }
-        {
-          case GET(p"/hello/$to") => Action {
-            Ok(s"Hello $to")
-          }
+      )) {
+        case GET(p"/hello/$to") => Action {
+          Results.Ok(s"Hello $to")
         }
       }
       //#config-akka-http
@@ -77,20 +69,18 @@ class ScalaAkkaEmbeddingPlay extends Specification with WsTestClient {
 
       val components = new AkkaHttpServerComponents with BuiltInComponents with NoHttpFiltersComponents {
 
-        override lazy val router: Router = Router.from {
+        lazy val Action = defaultActionBuilder
+
+        lazy val router = Router.from {
           case GET(p"/hello/$to") => Action {
             Results.Ok(s"Hello $to")
           }
         }
 
-        override lazy val httpErrorHandler = new DefaultHttpErrorHandler(
-          environment,
-          configuration,
-          sourceMapper,
-          Some(router)
-        ) {
+        override lazy val httpErrorHandler = new DefaultHttpErrorHandler(environment,
+          configuration, sourceMapper, Some(router)) {
 
-          override protected def onNotFound(request: RequestHeader, message: String): Future[Result] = {
+          override protected def onNotFound(request: RequestHeader, message: String) = {
             Future.successful(Results.NotFound("Nothing was found!"))
           }
         }

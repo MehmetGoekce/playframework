@@ -19,9 +19,10 @@ import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 
 import scala.concurrent.Future
-import scala.concurrent.duration._
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.language.implicitConversions
 import scala.util.{ Failure, Try }
+import scala.concurrent.duration._
 
 /**
  * FileSystem utilities.
@@ -153,18 +154,24 @@ object Files {
     // https://google.github.io/guava/releases/19.0/api/docs/com/google/common/base/FinalizableReferenceQueue.html
     // Keeping references ensures that the FinalizablePhantomReference itself is not garbage-collected.
     private val references = Sets.newConcurrentHashSet[Reference[TemporaryFile]]()
-
-    private val TempDirectoryPrefix = "playtemp"
-    private val playTempFolder: Path = {
-      val tmpFolder = JFiles.createTempDirectory(TempDirectoryPrefix)
-      temporaryFileReaper.updateTempFolder(tmpFolder)
-      tmpFolder
-    }
+    private var _playTempFolder: Option[Path] = None
 
     override def create(prefix: String, suffix: String): TemporaryFile = {
       JFiles.createDirectories(playTempFolder)
       val tempFile = JFiles.createTempFile(playTempFolder, prefix, suffix)
       createReference(new DefaultTemporaryFile(tempFile, this))
+    }
+
+    private def playTempFolder: Path = _playTempFolder match {
+      // We may need to recreate the file if it was deleted (e.g. by tmpwatch)
+      case Some(folder) if JFiles.exists(folder) =>
+        temporaryFileReaper.updateTempFolder(folder)
+        folder
+      case _ =>
+        val folder = JFiles.createTempDirectory("playtemp")
+        _playTempFolder = Some(folder)
+        temporaryFileReaper.updateTempFolder(folder)
+        folder
     }
 
     override def create(path: Path): TemporaryFile = {
@@ -176,7 +183,7 @@ object Files {
         override def finalizeReferent(): Unit = {
           references.remove(this)
           val path = tempFile.path
-          deletePath(path)
+          delete(tempFile)
         }
       }
       references.add(reference)
@@ -212,7 +219,7 @@ object Files {
     applicationLifecycle.addStopHook { () =>
       Future.successful(JFiles.walkFileTree(playTempFolder, new SimpleFileVisitor[Path] {
         override def visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult = {
-          logger.debug(s"stopHook: Removing leftover temporary file $path from ${playTempFolder}")
+          logger.debug(s"stopHook: Removing leftover temporary file $path from $playTempFolder")
           deletePath(path)
           FileVisitResult.CONTINUE
         }
@@ -259,22 +266,18 @@ object Files {
         playTempFolder.map { f =>
           import scala.compat.java8.StreamConverters._
 
-          val directoryStream = JFiles.list(f)
-
-          try {
-            val reaped = directoryStream.filter(new Predicate[Path]() {
+          val reaped = JFiles.list(f)
+            .filter(new Predicate[Path]() {
               override def test(p: Path): Boolean = {
                 val lastModifiedTime = JFiles.getLastModifiedTime(p).toInstant
                 lastModifiedTime.isBefore(secondsAgo)
               }
             }).toScala[List]
 
-            reaped.foreach(delete)
-            reaped
-          } finally {
-            directoryStream.close()
+          reaped.foreach { p =>
+            delete(p)
           }
-
+          reaped
         }.getOrElse(Seq.empty)
       }(blockingExecutionContext)
     }
@@ -293,12 +296,7 @@ object Files {
 
     if (config.enabled) {
       import config._
-      playTempFolder match {
-        case Some(folder) =>
-          logger.debug(s"Reaper enabled on $folder, starting in $initialDelay with $interval intervals")
-        case None =>
-          logger.debug(s"Reaper enabled but no temp folder has been created yet, starting in $initialDelay with $interval intervals")
-      }
+      logger.info(s"Reaper enabled on $playTempFolder, starting in $initialDelay with $interval intervals")
       cancellable = Some(actorSystem.scheduler.schedule(initialDelay, interval){
         reap()
       }(actorSystem.dispatcher))

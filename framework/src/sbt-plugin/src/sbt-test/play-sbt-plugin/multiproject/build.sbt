@@ -4,20 +4,17 @@
 
 lazy val root = (project in file("."))
   .enablePlugins(PlayScala)
-  .enablePlugins(MediatorWorkaroundPlugin)
   .dependsOn(playmodule, nonplaymodule)
   .settings(common: _*)
 
 lazy val playmodule = (project in file("playmodule"))
   .enablePlugins(PlayScala)
-  .enablePlugins(MediatorWorkaroundPlugin)
   .dependsOn(transitive)
   .settings(common: _*)
 
 // A transitive dependency of playmodule, to check that we are pulling in transitive deps
 lazy val transitive = (project in file("transitive"))
   .enablePlugins(PlayScala)
-  .enablePlugins(MediatorWorkaroundPlugin)
   .settings(common: _*)
 
 // A non play module, to check that play settings that are not defined don't cause errors
@@ -26,7 +23,7 @@ lazy val nonplaymodule = (project in file("nonplaymodule"))
   .settings(common: _*)
 
 def common: Seq[Setting[_]] = Seq(
-  scalaVersion := sys.props.get("scala.version").getOrElse("2.12.3"),
+  scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.12.2"),
   libraryDependencies += guice
 )
 
@@ -54,7 +51,7 @@ TaskKey[Unit]("checkPlayMonitoredFiles") := {
 }
 
 TaskKey[Unit]("checkPlayCompileEverything") := {
-  val analyses = play.sbt.PlayInternalKeys.playCompileEverything.value
+  val analyses: Seq[sbt.inc.Analysis] = play.sbt.PlayInternalKeys.playCompileEverything.value
   if (analyses.size != 4) {
     throw new RuntimeException("Expected 4 analysis objects, but got " + analyses.size)
   }

@@ -4,8 +4,8 @@
 package javaguide.logging;
 
 //#logging-pattern-mix
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import play.Logger;
+import play.Logger.ALogger;
 import play.mvc.Action;
 import play.mvc.Controller;
 import play.mvc.Http;
@@ -16,7 +16,7 @@ import java.util.concurrent.CompletionStage;
 
 public class Application extends Controller {
 
-  private static final Logger logger = LoggerFactory.getLogger(Application.class);
+  private static final ALogger logger = Logger.of(Application.class);
 
   @With(AccessLoggingAction.class)
   public Result index() {
@@ -37,7 +37,7 @@ public class Application extends Controller {
 
 class AccessLoggingAction extends Action.Simple {
 
-  private static final Logger accessLogger = LoggerFactory.getLogger(AccessLoggingAction.class);
+  private ALogger accessLogger = Logger.of("access");
 
   public CompletionStage<Result> call(Http.Context ctx) {
     final Request request = ctx.request();

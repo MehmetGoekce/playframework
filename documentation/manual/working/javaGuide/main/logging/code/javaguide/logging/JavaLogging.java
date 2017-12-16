@@ -10,47 +10,45 @@ import static org.junit.Assert.assertThat;
 import org.junit.Test;
 
 //#logging-import
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import play.Logger;
 //#logging-import
 
 public class JavaLogging {
-
-  private static final Logger logger = LoggerFactory.getLogger(JavaLogging.class);
 
   public void testDefaultLogger() {
 
     //#logging-default-logger
     // Log some debug info
-    logger.debug("Attempting risky calculation.");
+    Logger.debug("Attempting risky calculation.");
 
     try {
       final int result = riskyCalculation();
 
       // Log result if successful
-      logger.debug("Result={}", result);
+      Logger.debug("Result={}", result);
     } catch (Throwable t) {
       // Log error with message and Throwable.
-      logger.error("Exception with riskyCalculation", t);
+      Logger.error("Exception with riskyCalculation", t);
     }
     //#logging-default-logger
 
+    assertThat(Logger.underlying().getName(), equalTo("application"));
   }
 
   @Test
   public void testCreateLogger() {
 
     //#logging-create-logger-name
-    final Logger accessLogger = LoggerFactory.getLogger("access");
+    final Logger.ALogger accessLogger = Logger.of("access");
     //#logging-create-logger-name
 
-    assertThat(accessLogger.getName(), equalTo("access"));
+    assertThat(accessLogger.underlying().getName(), equalTo("access"));
 
     //#logging-create-logger-class
-    final Logger log = LoggerFactory.getLogger(this.getClass());
+    final Logger.ALogger logger = Logger.of(this.getClass());
     //#logging-create-logger-class
 
-    assertThat(log.getName(), equalTo("javaguide.logging.JavaLogging"));
+    assertThat(logger.underlying().getName(), equalTo("javaguide.logging.JavaLogging"));
   }
 
   private int riskyCalculation() {

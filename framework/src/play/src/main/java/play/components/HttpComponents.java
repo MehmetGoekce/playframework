@@ -3,12 +3,9 @@
  */
 package play.components;
 
-import play.core.j.JavaHandlerComponents;
 import play.http.ActionCreator;
 import play.http.HttpRequestHandler;
 import play.mvc.EssentialFilter;
-
-import java.util.List;
 
 public interface HttpComponents extends HttpConfigurationComponents {
 
@@ -21,16 +18,17 @@ public interface HttpComponents extends HttpConfigurationComponents {
      * In most cases you will want to mixin HttpFiltersComponents and append your own filters:
      *
      * <pre>
-     * public class MyComponents extends BuiltInComponentsFromContext implements HttpFiltersComponents {
+     * public class MyComponents extends BuiltInComponentsFromContext implements play.filters.components.HttpFiltersComponents {
      *
      *   public MyComponents(ApplicationLoader.Context context) {
      *       super(context);
      *   }
      *
-     *   public List&lt;EssentialFilter&gt; httpFilters() {
-     *       List&lt;EssentialFilter&gt; filters = HttpFiltersComponents.super.httpFilters();
+     *   public EssentialFilter[] httpFilters() {
+     *       LoggingFilter loggingFilter = new LoggingFilter();
+     *       List&lt;EssentialFilter&gt; filters = Arrays.asList(httpFilters());
      *       filters.add(loggingFilter);
-     *       return filters;
+     *       return filters.toArray();
      *   }
      *
      *   // other required methods
@@ -40,17 +38,18 @@ public interface HttpComponents extends HttpConfigurationComponents {
      * If you want to filter elements out of the list, you can do the following:
      *
      * <pre>
-     * class MyComponents extends BuiltInComponentsFromContext implements HttpFiltersComponents {
+     * class MyComponents extends BuiltInComponentsFromContext implements play.filters.HttpFiltersComponents {
      *
      *   public MyComponents(ApplicationLoader.Context context) {
      *       super(context);
      *   }
      *
-     *   public List&lt;EssentialFilter&gt; httpFilters() {
-     *     return httpFilters().stream()
+     *   public EssentialFilter[] httpFilters() {
+     *     return Arrays
+     *          .stream(httpFilters())
      *          // accept only filters that are not CSRFFilter
      *          .filter(f -&gt; !f.getClass().equals(CSRFFilter.class))
-     *          .collect(Collectors.toList());
+     *          .toArray();
      *   }
      *
      *   // other required methods
@@ -60,9 +59,7 @@ public interface HttpComponents extends HttpConfigurationComponents {
      * @return an array with the http filters.
      * @see EssentialFilter
      */
-    List<EssentialFilter> httpFilters();
-
-    JavaHandlerComponents javaHandlerComponents();
+    EssentialFilter[] httpFilters();
 
     HttpRequestHandler httpRequestHandler();
 }

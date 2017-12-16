@@ -120,7 +120,7 @@ class FormController @Inject()(components: ControllerComponents)
 
 Note there is now also type enrichment in [`I18nSupport`](api/scala/play/api/i18n/I18nSupport.html) which adds `request.messages` and `request.lang`.  This can be added either by extending from [`I18nSupport`](api/scala/play/api/i18n/I18nSupport.html), or by `import I18nSupport._`.  The import version does not contain the `request2messages` implicit conversion.
 
-## Integrated Messages with MessagesProvider
+### MessagesProvider trait
 
 A new [`MessagesProvider`](api/scala/play/api/i18n/MessagesProvider.html) trait is available, which exposes a [`Messages`](api/scala/play/api/i18n/Messages.html) instance.
 
@@ -140,8 +140,6 @@ All the template helpers now take [`MessagesProvider`](api/scala/play/api/i18n/M
 
 The benefit to using a [`MessagesProvider`](api/scala/play/api/i18n/MessagesProvider.html) is that otherwise, if you used implicit `Messages`, you would have to introduce implicit conversions from other types like `Request` in places where those implicits could be confusing.
 
-### MessagesRequest and MessagesAbstractController
-
 To assist, there's [`MessagesRequest`](api/scala/play/api/mvc/MessagesRequest.html), which is a [`WrappedRequest`](api/scala/play/api/mvc/WrappedRequest.html) that implements [`MessagesProvider`](api/scala/play/api/i18n/MessagesProvider.html) and provides the preferred language.
 
 You can access a [`MessagesRequest`](api/scala/play/api/mvc/MessagesRequest.html) by using a [`MessagesActionBuilder`](api/scala/play/api/mvc/MessagesActionBuilder.html):
@@ -159,30 +157,45 @@ class MyController @Inject()(
 
 ```
 
-Or you can use [`MessagesAbstractController`](api/scala/play/api/mvc/MessagesAbstractController.html), which swaps out the default `Action` that provides `MessagesRequest` instead of `Request` in the block:
+Or you can even replace the default `Action` with [`MessagesActionBuilder`](api/scala/play/api/mvc/MessagesActionBuilder.html) by swapping out the components:
 
 ```scala
 
-class MyController @Inject() (
-  mcc: MessagesControllerComponents
-) extends MessagesAbstractController(mcc) {
+case class MyControllerComponents @Inject()(
+  messagesActionBuilder: MessagesAction,
+  actionBuilder: DefaultActionBuilder,
+  parsers: PlayBodyParsers,
+  messagesApi: MessagesApi,
+  langs: Langs,
+  fileMimeTypes: FileMimeTypes,
+  executionContext: scala.concurrent.ExecutionContext
+) extends ControllerComponents
 
-  def index = Action { implicit request: MessagesRequest[AnyContent] =>
-      Ok(s"The messages are ${request.messages}")
+abstract class MyAbstractController @Inject()(
+  protected val controllerComponents: MyControllerComponents
+) extends ControllerHelpers {
+  // Same as AbstractController, but MessagesRequest instead of Request
+  def Action: ActionBuilder[MessagesRequest, AnyContent] = {
+    controllerComponents.messagesActionBuilder.compose(controllerComponents.actionBuilder)
   }
+  def parse: PlayBodyParsers = controllerComponents.parsers
+  def defaultExecutionContext: ExecutionContext = controllerComponents.executionContext
+  implicit def messagesApi: MessagesApi = controllerComponents.messagesApi
+  implicit def supportedLangs: Langs = controllerComponents.langs
+  implicit def fileMimeTypes: FileMimeTypes = controllerComponents.fileMimeTypes
 }
 
 ```
 
-Here's a complete example using a form with a CSRF action (assuming that you have CSRF filter disabled):
+By setting up your own abstract controller as a base and extending your controllers from it, you can provide richer functionality without having to inject functionality directly.  This is a direct replacement for [`AbstractController`](api/scala/play/api/mvc/AbstractController.html), and lets you redefine `Action` with your own types:
 
 ```scala
 
 class MyController @Inject() (
   addToken: CSRFAddToken,
   checkToken: CSRFCheck,
-  mcc: MessagesControllerComponents
-) extends MessagesAbstractController(mcc) {
+  components: MyControllerComponents
+) extends MyAbstractController(components) {
 
   import play.api.data.Form
   import play.api.data.Forms._
@@ -201,6 +214,7 @@ class MyController @Inject() (
   }
 
   def userPost = checkToken {
+    // Same as AbstractController, only using MessagesRequest[AnyContent]
     Action { implicit request =>
       userForm.bindFromRequest.fold(
         formWithErrors => {
@@ -209,7 +223,7 @@ class MyController @Inject() (
         },
         user => {
           play.api.Logger.info(s"successful user submission ${user}")
-          Redirect(routes.MyController.index()).flashing("success" -> s"User is ${user}!")
+          Redirect(routes.MessagesController.index()).flashing("success" -> s"User is ${user}!")
         }
       )
     }
@@ -218,7 +232,7 @@ class MyController @Inject() (
 
 ```
 
-Because `MessagesRequest` is a `MessagesProvider`, you only have to define the request as implicit and it will carry through to the template.  This is especially useful when CSRF checks are involved.  The `formpage.scala.html` page is as follow:
+This is also useful for passing around a single implicit request, especially when CSRF checks are involved:
 
 ```scala
 
@@ -233,9 +247,7 @@ Because `MessagesRequest` is a `MessagesProvider`, you only have to define the r
 
 ```
 
-Note that because the body of the `MessageRequest` is not relevant to the template, we can use `MessagesRequestHeader` here instead of `MessageRequest[_]`.
-
-Please see [[passing messages to form helpers|ScalaForms#Passing-MessagesProvider-to-Form-Helpers]] for more details.
+Please see [[passing messages to form helpers|ScalaForms#passing-messages-to-form-helpers]] for more details.
 
 ### DefaultMessagesApi component
 
@@ -276,9 +288,10 @@ For functional tests that involve configuration, the best option is to use `With
 ```scala
 
 import play.api.test.{ PlaySpecification, WithApplication }
+import play.api.mvc.Controller
 import play.api.i18n._
 
-class MessagesSpec extends PlaySpecification {
+class MessagesSpec extends PlaySpecification with Controller {
 
   sequential
 
@@ -306,7 +319,7 @@ class MessagesSpec extends PlaySpecification {
 
 ```
 
-If you need to customize the configuration, it's better to add configuration values into the [`GuiceApplicationBuilder`](api/scala/play/api/inject/guice/GuiceApplicationBuilder.html) rather than use the [`DefaultMessagesApiProvider`](api/scala/play/api/i18n/DefaultMessagesApiProvider.html) directly.
+If you need to customize the configuration, it's better to add configuration values into the GuiceApplicationBuilder rather than use the DefaultMessagesApiProvider directly.
 
 ### Deprecated Methods
 

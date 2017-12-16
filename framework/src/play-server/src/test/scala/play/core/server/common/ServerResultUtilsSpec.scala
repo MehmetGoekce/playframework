@@ -6,14 +6,14 @@ package play.core.server.common
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
+import io.jsonwebtoken.{ Jws, Jwts }
 import org.specs2.mutable.Specification
 import play.api.http.Status._
 import play.api.http._
-import play.api.libs.crypto.CookieSignerProvider
 import play.api.libs.typedmap.TypedMap
 import play.api.mvc.Results._
 import play.api.mvc._
-import play.api.mvc.request.{ DefaultRequestFactory, RemoteConnection, RequestTarget }
+import play.api.mvc.request.{ DefaultRequestFactory, RemoteConnection, RequestAttrKey, RequestTarget }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, Future }
@@ -25,15 +25,7 @@ class ServerResultUtilsSpec extends Specification {
     override def jwtConfiguration = JWTConfiguration()
     override def secretConfiguration = SecretConfiguration()
   }
-  val resultUtils = {
-    val httpConfig = HttpConfiguration()
-    new ServerResultUtils(
-      httpConfig,
-      new DefaultSessionCookieBaker(httpConfig.session, httpConfig.secret, new CookieSignerProvider(httpConfig.secret).get),
-      new DefaultFlashCookieBaker(httpConfig.flash, httpConfig.secret, new CookieSignerProvider(httpConfig.secret).get),
-      new DefaultCookieHeaderEncoding(httpConfig.cookies)
-    )
-  }
+  val resultUtils = new ServerResultUtils(HttpConfiguration())
 
   private def cookieRequestHeader(cookie: Option[(String, String)]): RequestHeader = {
     new DefaultRequestFactory(HttpConfiguration()).createRequestHeader(

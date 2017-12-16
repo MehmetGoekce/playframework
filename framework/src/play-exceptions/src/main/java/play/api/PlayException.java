@@ -3,18 +3,14 @@
  */
 package play.api;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
 
 /**
  * Helper for `PlayException`.
  */
 public class PlayException extends UsefulException {
-
-    /** Statically compiled Pattern for splitting lines. */
-    private static final Pattern SPLIT_LINES = Pattern.compile("\\r?\\n");
 
     private final AtomicLong generator = new AtomicLong(System.currentTimeMillis());
 
@@ -93,8 +89,7 @@ public class PlayException extends UsefulException {
                 if(input() == null || line() == null) {
                     return null;
                 }
-
-                String[] lines = SPLIT_LINES.split(input(), 0);
+                String[] lines = input().split("\\r?\\n");
                 int firstLine = Math.max(0, line() - 1 - border);
                 int lastLine = Math.min(lines.length - 1, line() - 1 + border);
                 List<String> focusOn = new ArrayList<String>();

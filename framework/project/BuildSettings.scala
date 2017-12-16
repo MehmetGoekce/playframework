@@ -1,13 +1,13 @@
 /*
  * Copyright (C) 2009-2017 Lightbend Inc. <https://www.lightbend.com>
  */
+import com.typesafe.sbt.SbtScalariform._
+
 import sbt.ScriptedPlugin._
 import sbt._
-import Keys.{version, _}
-
-import com.typesafe.tools.mima.core._
-import com.typesafe.tools.mima.plugin.MimaKeys._
-import com.typesafe.tools.mima.plugin.MimaPlugin._
+import Keys._
+import com.typesafe.tools.mima.plugin.MimaPlugin.mimaDefaultSettings
+import com.typesafe.tools.mima.plugin.MimaKeys.mimaPreviousArtifacts
 
 import de.heikoseeberger.sbtheader.HeaderKey._
 import de.heikoseeberger.sbtheader.HeaderPattern
@@ -15,6 +15,7 @@ import de.heikoseeberger.sbtheader.HeaderPattern
 import scalariform.formatter.preferences._
 import com.typesafe.sbt.SbtScalariform.scalariformSettings
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+
 import bintray.BintrayPlugin.autoImport._
 import interplay._
 import interplay.Omnidoc.autoImport._
@@ -43,7 +44,7 @@ object BuildSettings {
    * File header settings
    */
   val fileHeaderSettings = Seq(
-    excludes := Seq("*/cookie/encoding/*", "*/inject/SourceProvider.java"),
+    excludes := Seq("*/netty/utils/*", "*/inject/SourceProvider.java"),
     headers := Map(
       "scala" -> (HeaderPattern.cStyleBlockComment,
         """|/*
@@ -57,17 +58,6 @@ object BuildSettings {
            |""".stripMargin)
     )
   )
-
-  private val VersionPattern = """^(\d+).(\d+).(\d+)(-.*)?""".r
-
-  // Versions of previous minor releases being checked for binary compatibility
-  val mimaPreviousMinorReleaseVersions: Seq[String] = Seq("2.6.0")
-  def mimaPreviousPatchVersions(version: String): Seq[String] = version match {
-    case VersionPattern(epoch, major, minor, rest) => (0 until minor.toInt).map(v => s"$epoch.$major.$v")
-    case _ => sys.error(s"Cannot find previous versions for $version")
-  }
-  def mimaPreviousVersions(version: String): Set[String] =
-    mimaPreviousMinorReleaseVersions.toSet ++ mimaPreviousPatchVersions(version)
 
   /**
    * These settings are used by all projects
@@ -162,72 +152,18 @@ object BuildSettings {
   def playRuntimeSettings: Seq[Setting[_]] = playCommonSettings ++ mimaDefaultSettings ++ Seq(
     mimaPreviousArtifacts := {
       // Binary compatibility is tested against these versions
-      val previousVersions = mimaPreviousVersions(version.value)
+      val previousVersions = {
+        val VersionPattern = """^(\d+).(\d+).(\d+)(-.*)?""".r
+        version.value match {
+          case VersionPattern(epoch, major, minor, rest) => (0 until minor.toInt).map(v => s"$epoch.$major.$v")
+          case _ => sys.error(s"Cannot find previous versions for ${version.value}")
+        }
+      }.toSet
       if (crossPaths.value) {
         previousVersions.map(v => organization.value % s"${moduleName.value}_${scalaBinaryVersion.value}" %  v)
       } else {
         previousVersions.map(v => organization.value % moduleName.value %  v)
       }
-    },
-    mimaBinaryIssueFilters ++= Seq(
-      // Changing return and parameter types from DefaultApplicationLifecycle (implementation) to ApplicationLifecycle (trait)
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.BuiltInComponents.applicationLifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.BuiltInComponentsFromContext.applicationLifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.core.server.AkkaHttpServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.AkkaHttpServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.core.server.AkkaHttpServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.ApplicationLoader.createContext$default$5"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.ApplicationLoader#Context.lifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.ApplicationLoader#Context.copy$default$5"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.core.ObjectMapperComponents.applicationLifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.core.server.NettyServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.http.CookiesConfiguration.serverEncoder"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.http.CookiesConfiguration.serverDecoder"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.http.CookiesConfiguration.clientEncoder"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.api.http.CookiesConfiguration.clientDecoder"),
-      ProblemFilters.exclude[IncompatibleMethTypeProblem]("play.api.ApplicationLoader.createContext"),
-      ProblemFilters.exclude[IncompatibleMethTypeProblem]("play.api.ApplicationLoader#Context.apply"),
-      ProblemFilters.exclude[IncompatibleMethTypeProblem]("play.api.ApplicationLoader#Context.copy"),
-      ProblemFilters.exclude[IncompatibleMethTypeProblem]("play.api.ApplicationLoader#Context.this"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.BuiltInComponents.applicationLifecycle"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.core.ObjectMapperComponents.applicationLifecycle"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.NettyServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.core.server.NettyServerComponents.applicationLifecycle"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.common.ServerResultUtils.sessionBaker"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.common.ServerResultUtils.cookieHeaderEncoding"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.common.ServerResultUtils.flashBaker"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.common.ServerResultUtils.this"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.CONTENT_SECURITY_POLICY"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$CONTENT_SECURITY_POLICY_="),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$X_XSS_PROTECTION_="),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.X_XSS_PROTECTION"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$REFERRER_POLICY_="),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.REFERRER_POLICY"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.X_CONTENT_TYPE_OPTIONS"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$X_CONTENT_TYPE_OPTIONS_="),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.X_PERMITTED_CROSS_DOMAIN_POLICIES"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$X_PERMITTED_CROSS_DOMAIN_POLICIES_="),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.X_FRAME_OPTIONS"),
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.http.HeaderNames.play$api$http$HeaderNames$_setter_$X_FRAME_OPTIONS_="),
-
-      // private
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.core.server.akkahttp.AkkaModelConversion.this"),
-
-      // Added method to PlayBodyParsers, which is a Play API not meant to be extended by end users.
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.mvc.PlayBodyParsers.byteString"),
-
-      // Refactoring to unify AkkaHttpServer and NettyServer fromRouter methods
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.core.server.NettyServer.fromRouter"),
-      ProblemFilters.exclude[IncompatibleResultTypeProblem]("play.core.server.AkkaHttpServer.fromRouter"),
-
-      // Moved play[private] out of from companion object to allow it to access member variables
-      ProblemFilters.exclude[DirectMissingMethodProblem]("play.api.test.TestServer.start"),
-
-      // Added component so configuration would work properly
-      ProblemFilters.exclude[ReversedMissingMethodProblem]("play.api.cache.ehcache.EhCacheComponents.actorSystem")
-    ),
-    unmanagedSourceDirectories in Compile += {
-      (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
     },
     // Argument for setting size of permgen space or meta space for all forked processes
     Docs.apiDocsInclude := true
@@ -287,7 +223,7 @@ object BuildSettings {
     scriptedLaunchOpts ++= Seq(
       "-Xmx768m",
       maxMetaspace,
-      "-Dscala.version=" + sys.props.get("scripted.scala.version").orElse(sys.props.get("scala.version")).getOrElse("2.12.3")
+      "-Dscala.version=" + sys.props.get("scripted.scala.version").getOrElse(sys.props.get("scala.version").getOrElse("2.12.2"))
     )
   )
 
@@ -312,9 +248,6 @@ object BuildSettings {
         .enablePlugins(PlaySbtPlugin)
         .settings(playCommonSettings: _*)
         .settings(playScriptedSettings: _*)
-        .settings(
-          fork in Test := false
-        )
   }
 
 }

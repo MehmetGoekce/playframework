@@ -3,13 +3,13 @@
  */
 package play.api.libs.ws.ahc
 
-import java.io.File
 import java.net.URI
 
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import play.api.libs.ws._
+import play.api.libs.ws.{ WSBody, _ }
 import play.api.mvc.MultipartFormData
+import play.core.formatters.Multipart
 
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
@@ -17,7 +17,7 @@ import scala.concurrent.duration.Duration
 /**
  * A WS Request backed by AsyncHTTPClient.
  */
-case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest with WSBodyWritables {
+case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest {
   override type Self = WSRequest
   override type Response = WSResponse
 
@@ -91,15 +91,11 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
     underlying.sign(calc)
   }
 
-  override def withCookies(cookies: WSCookie*): Self = toWSRequest {
+  override def withCookies(cookies: WSCookie*): WSRequest = toWSRequest {
     underlying.withCookies(cookies: _*)
   }
 
-  override def addCookies(cookies: WSCookie*): Self = toWSRequest {
-    underlying.addCookies(cookies: _*)
-  }
-
-  override def withQueryStringParameters(parameters: (String, String)*): Self = toWSRequest {
+  override def withQueryStringParameters(parameters: (String, String)*): WSRequest = toWSRequest {
     underlying.withQueryStringParameters(parameters: _*)
   }
 
@@ -107,18 +103,16 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
     underlying.withAuth(username, password, scheme)
   }
 
-  @deprecated("Use addHttpHeaders or withHttpHeaders", "2.6.0")
   override def withHeaders(hdrs: (String, String)*): Self = toWSRequest {
-    underlying.addHttpHeaders(hdrs: _*)
+    underlying.withHeaders(hdrs: _*)
   }
 
-  override def withHttpHeaders(headers: (String, String)*): Self = toWSRequest {
+  override def withHttpHeaders(headers: (String, String)*): WSRequest = toWSRequest {
     underlying.withHttpHeaders(headers: _*)
   }
 
-  @deprecated("Use addQueryStringParameters or withQueryStringParameters", "2.6.0")
   override def withQueryString(parameters: (String, String)*): Self = toWSRequest {
-    underlying.addQueryStringParameters(parameters: _*)
+    underlying.withQueryString(parameters: _*)
   }
 
   override def withFollowRedirects(follow: Boolean): Self = toWSRequest {
@@ -129,7 +123,7 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
     underlying.withRequestTimeout(timeout)
   }
 
-  override def withRequestFilter(filter: WSRequestFilter): Self = toWSRequest {
+  override def withRequestFilter(filter: WSRequestFilter): WSRequest = toWSRequest {
     underlying.withRequestFilter(filter.asInstanceOf[WSRequestFilter])
   }
 
@@ -145,96 +139,21 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
     underlying.withMethod(method)
   }
 
+  override def withBody(body: WSBody): Self = toWSRequest {
+    underlying.withBody(body)
+  }
+
+  override def withBody(file: java.io.File): Self = toWSRequest(underlying.withBody(file))
+
   override def withBody[T: BodyWritable](body: T): Self = toWSRequest(underlying.withBody(body))
 
-  //-------------------------------------------------
-  // PATCH
-  //-------------------------------------------------
-
   /**
-   * Perform a PATCH on the request asynchronously.
+   * Sets a multipart body for this request
    */
-  override def patch[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("PATCH")
-
-  /**
-   * Perform a PATCH on the request asynchronously.
-   * Request body won't be chunked
-   *
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use patch(bodyWritable)", "2.6.0")
-  override def patch(body: File): Future[WSResponse] = {
-    patch[File](body)
-  }
-
-  /**
-   * Perform a PATCH on the request asynchronously.
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use patch(bodyWritable)", "2.6.0")
-  override def patch(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[WSResponse] = {
-    patch[Source[MultipartFormData.Part[Source[ByteString, _]], _]](body)
-  }
-
-  //-------------------------------------------------
-  // POST
-  //-------------------------------------------------
-
-  /**
-   * Perform a POST on the request asynchronously.
-   */
-  override def post[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("POST")
-
-  /**
-   * Perform a POST on the request asynchronously.
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use post(BodyWritable)", "2.6.0")
-  override def post(body: File): Future[WSResponse] = {
-    post[File](body)
-  }
-
-  /**
-   * Performs a POST on the request asynchronously.
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use post(BodyWritable)", "2.6.0")
-  override def post(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[WSResponse] = {
-    post[Source[MultipartFormData.Part[Source[ByteString, _]], _]](body)
-  }
-
-  //-------------------------------------------------
-  // PUT
-  //-------------------------------------------------
-
-  /**
-   * Perform a PUT on the request asynchronously.
-   */
-  override def put[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("PUT")
-
-  /**
-   * Perform a PUT on the request asynchronously.
-   * Request body won't be chunked
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use put(BodyWritable)", "2.6.0")
-  override def put(body: File): Future[WSResponse] = {
-    put[File](body)
-  }
-
-  /**
-   * Perform a PUT on the request asynchronously.
-   *
-   * @deprecated Import WSBodyWritables and use the typeclass in preference to this method, since 2.6.0
-   */
-  @deprecated("Use put(BodyWritable)", "2.6.0")
-  override def put(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[WSResponse] = {
-    put[Source[MultipartFormData.Part[Source[ByteString, _]], _]](body)
+  override def withBody(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Self = {
+    val boundary = Multipart.randomBoundary()
+    val contentType = s"multipart/form-data; boundary=$boundary"
+    withBody(StreamedBody(Multipart.transform(body, boundary))).withHeaders("Content-Type" -> contentType)
   }
 
   override def delete(): Future[Response] = execute("DELETE")
@@ -245,12 +164,31 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
 
   override def options(): Future[Response] = execute("OPTIONS")
 
-  override def stream(): Future[Response] = {
-    val futureResponse: Future[StandaloneWSResponse] = underlying.stream()
-    futureResponse.map { f =>
-      AhcWSResponse(f)
-    }(play.core.Execution.trampoline)
+  /**
+   * Perform a PATCH on the request asynchronously.
+   */
+  override def patch(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[Response] = {
+    withBody(body).execute("PATCH")
   }
+  override def patch(file: java.io.File): Future[Response] = withBody(file).execute("PATCH")
+  override def patch[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("PATCH")
+
+  /**
+   * Perform a POST on the request asynchronously.
+   */
+  override def post(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[Response] =
+    withBody(body).execute("POST")
+  override def post(body: java.io.File): Future[Response] = withBody(body).execute("POST")
+  override def post[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("POST")
+
+  /**
+   * Perform a PUT on the request asynchronously.
+   */
+  override def put(body: Source[MultipartFormData.Part[Source[ByteString, _]], _]): Future[Response] = withBody(body).execute("PUT")
+  override def put[T: BodyWritable](body: T): Future[Response] = withBody(body).execute("PUT")
+  override def put(body: java.io.File): Future[Response] = withBody(body).execute("PUT")
+
+  def stream(): Future[StreamedResponse] = underlying.stream()
 
   def execute(method: String): Future[Response] = {
     withMethod(method).execute()
@@ -259,7 +197,7 @@ case class AhcWSRequest(underlying: StandaloneAhcWSRequest) extends WSRequest wi
   override def execute(): Future[Response] = {
     val futureResponse: Future[StandaloneWSResponse] = underlying.execute()
     futureResponse.map { f =>
-      AhcWSResponse(f)
+      AhcWSResponse(f.asInstanceOf[StandaloneAhcWSResponse])
     }(play.core.Execution.trampoline)
   }
 

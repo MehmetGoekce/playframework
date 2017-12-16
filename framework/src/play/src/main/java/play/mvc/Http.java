@@ -13,6 +13,7 @@ import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 import play.api.http.HttpConfiguration;
 import play.api.libs.json.JsValue;
+import play.api.mvc.Headers;
 import play.api.mvc.Headers$;
 import play.api.mvc.request.*;
 import play.core.j.JavaContextComponents;
@@ -509,95 +510,6 @@ public class Http {
         }
     }
 
-    public static class Headers {
-
-        private final Map<String,  List<String>> headers;
-
-        public Headers(Map<String, List<String>> headers) {
-            this.headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            this.headers.putAll(headers);
-        }
-
-        /**
-         * @return all the headers as a map.
-         */
-        public Map<String, List<String>> toMap() {
-            return headers;
-        }
-
-        /**
-         * Checks if the given header is present.
-         *
-         * @param headerName The name of the header (case-insensitive)
-         * @return <code>true</code> if the request did contain the header.
-         */
-        public boolean contains(String headerName) {
-            return headers.containsKey(headerName);
-        }
-
-        /**
-         * Gets the header value. If more than one value is associated with this header, then returns the first one.
-         *
-         * @param name the header name
-         * @return the first header value or empty if no value available.
-         */
-        public Optional<String> get(String name) {
-            return Optional.ofNullable(headers.get(name)).flatMap(headerValues -> headerValues.stream().findFirst());
-        }
-
-        /**
-         * Get all the values associated with the header name.
-         *
-         * @param name the header name.
-         * @return the list of values associates with the header of empty.
-         */
-        public List<String> getAll(String name) {
-            return headers.getOrDefault(name, Collections.emptyList());
-        }
-
-        /**
-         * @return the scala version of this headers.
-         */
-        public play.api.mvc.Headers asScala() {
-            return new play.api.mvc.Headers(JavaHelpers$.MODULE$.javaMapOfListToScalaSeqOfPairs(this.headers));
-        }
-
-        /**
-         * Add a new header with the given value.
-         *
-         * @param name the header name
-         * @param value the header value
-         * @return this with the new header added
-         */
-        public Headers addHeader(String name, String value) {
-            this.headers.put(name, Collections.singletonList(value));
-            return this;
-        }
-
-        /**
-         * Add a new header with the given values.
-         *
-         * @param name the header name
-         * @param values the header values
-         * @return this with the new header added
-         */
-        public Headers addHeader(String name, List<String> values) {
-            this.headers.put(name, values);
-            return this;
-        }
-
-        /**
-         * Remove a header.
-         *
-         * @param name the header name.
-         * @return this without the removed header.
-         */
-        public Headers remove(String name) {
-            this.headers.remove(name);
-            return this;
-        }
-    }
-
     public interface RequestHeader {
 
         /**
@@ -730,61 +642,19 @@ public class Http {
         Cookie cookie(String name);
 
         /**
-         * Retrieve all headers.
-         *
-         * @return the request headers for this request.
-         */
-        Headers getHeaders();
-
-        /**
          * Retrieves all headers.
          *
          * @return a map of of header name to headers with case-insensitive keys
-         *
-         * @deprecated Deprecated as of 2.6.0. Use {@link #getHeaders()} instead.
          */
-        @Deprecated
-        default Map<String,String[]> headers() {
-            final Map<String, String[]> result = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            this.getHeaders().headers.forEach((key, values) -> {
-                String[] valuesArray = new String[values.size()];
-                result.put(key, values.toArray(valuesArray));
-            });
-            return result;
-        }
+        Map<String,String[]> headers();
 
         /**
          * Retrieves a single header.
          *
          * @param headerName The name of the header (case-insensitive)
          * @return the value corresponding to <code>headerName</code>, or null if it was not present
-         *
-         * @deprecated Deprecated as of 2.6.0. Use {@link #header(String)} ()} instead.
          */
-        @Deprecated
-        default String getHeader(String headerName) {
-            return getHeaders().get(headerName).orElse(null);
-        }
-
-        /**
-         * Retrieves a single header.
-         *
-         * @param headerName The name of the header (case-insensitive)
-         * @return the value corresponding to <code>headerName</code>, or empty if it was not present
-         */
-        default Optional<String> header(String headerName) {
-            return getHeaders().get(headerName);
-        }
-
-        /**
-         * Checks if the request has the header.
-         *
-         * @param headerName The name of the header (case-insensitive)
-         * @return <code>true</code> if the request did contain the header.
-         */
-        default boolean hasHeader(String headerName) {
-            return getHeaders().contains(headerName);
-        }
+        String getHeader(String headerName);
 
         /**
          * Checks if the request has a body.
@@ -792,6 +662,14 @@ public class Http {
          * @return true if request has a body, false otherwise.
          */
         boolean hasBody();
+
+        /**
+         * Checks if the request has the header.
+         *
+         * @param headerName The name of the header (case-insensitive)
+         * @return <code>true</code> if the request did contain the header.
+         */
+        boolean hasHeader(String headerName);
 
         /**
          * Get the content type of the request.
@@ -903,10 +781,7 @@ public class Http {
         /**
          * Constructor only based on a header.
          * @param header the header from a request
-         *
-         * @deprecated Since 2.7.0. Use {@link #RequestImpl(play.api.mvc.Request)} instead.
          */
-        @Deprecated
         public RequestImpl(play.api.mvc.RequestHeader header) {
             super(header.withBody(null));
         }
@@ -1007,9 +882,12 @@ public class Http {
         protected RequestBuilder body(RequestBody body) {
             if (body == null || body.as(Object.class) == null) {
                 // assume null signifies no body; RequestBody is a wrapper for the actual body content
-                headers(getHeaders().remove(HeaderNames.CONTENT_LENGTH).remove(HeaderNames.TRANSFER_ENCODING));
+                Map<String, String[]> h = headers();
+                h.remove(HeaderNames.CONTENT_LENGTH);
+                h.remove(HeaderNames.TRANSFER_ENCODING);
+                headers(h);
             } else {
-                if (!getHeaders().get(HeaderNames.TRANSFER_ENCODING).isPresent()) {
+                if (header(HeaderNames.TRANSFER_ENCODING) == null) {
                     int length = body.asBytes().length();
                     header(HeaderNames.CONTENT_LENGTH, Integer.toString(length));
                 }
@@ -1236,7 +1114,6 @@ public class Http {
          * @return the tags for the request
          * @deprecated Use typed attributes, i.e. <code>attrs()</code>, instead.
          */
-        @Deprecated
         public Map<String, String> tags() {
             return Scala.asJava(req.tags());
         }
@@ -1391,86 +1268,48 @@ public class Http {
         /**
          * @param key the key to be used in the header
          * @return the value associated with the key, if multiple, the first, if none returns null
-         *
-         * @deprecated As of release 2.6, use {@link #getHeaders()} instead.
          */
-        @Deprecated
         public String header(String key) {
-            return getHeaders().get(key).orElse(null);
+            String[] values = headers(key);
+            return (values == null || values.length == 0) ? null : values[0];
         }
 
         /**
          * @param key the key to be used in the header
          * @return all values (could be 0) associated with the key
-         *
-         * @deprecated As of release 2.6, use {@link #getHeaders()} instead.
          */
-        @Deprecated
         public String[] headers(String key) {
             return headers().get(key);
         }
 
         /**
          * @return the headers
-         *
-         * @deprecated As of release 2.6, use {@link #getHeaders()} instead.
          */
-        @Deprecated
         public Map<String, String[]> headers() {
             return JavaHelpers$.MODULE$.scalaMapOfSeqsToJavaMapOfArrays(req.headers().toMap());
         }
 
         /**
-         * @return the headers for this request builder
-         */
-        public Headers getHeaders() {
-            return req.headers().asJava();
-        }
-
-        /**
          * @param headers the headers to be replaced
          * @return the builder instance
-         *
-         * @deprecated As of release 2.6, use {@link #headers(Headers)} instead.
          */
-        @Deprecated
         public RequestBuilder headers(Map<String, String[]> headers) {
-            req = req.withHeaders(new play.api.mvc.Headers(
+            req = req.withHeaders(new Headers(
                     JavaHelpers$.MODULE$.javaMapOfArraysToScalaSeqOfPairs(headers)
             ));
             return this;
         }
 
         /**
-         * Set the headers to be used by the request builder.
-         *
-         * @param headers the headers to be replaced
-         * @return the builder instance
-         */
-        public RequestBuilder headers(Headers headers) {
-            req = req.withHeaders(headers.asScala());
-            return this;
-        }
-
-        /**
          * @param key the key for in the header
          * @param values the values associated with the key
          * @return the builder instance
-         *
-         * @deprecated As of release 2.6, use {@link #header(String, List)} instead.
          */
-        @Deprecated
         public RequestBuilder header(String key, String[] values) {
-            return this.headers(getHeaders().addHeader(key, Arrays.asList(values)));
-        }
-
-        /**
-         * @param key the key for in the header
-         * @param values the values associated with the key
-         * @return the builder instance
-         */
-        public RequestBuilder header(String key, List<String> values) {
-            return this.headers(getHeaders().addHeader(key, values));
+            Map<String, String[]> h = headers();
+            h.put(key, values);
+            headers(h);
+            return this;
         }
 
         /**
@@ -1479,7 +1318,8 @@ public class Http {
          * @return the builder instance
          */
         public RequestBuilder header(String key, String value) {
-            return this.headers(getHeaders().addHeader(key, value));
+            header(key, new String[] { value });
+            return this;
         }
 
         /**
@@ -1497,7 +1337,7 @@ public class Http {
         public RequestBuilder cookie(Cookie cookie) {
             play.api.mvc.Cookies newCookies = JavaHelpers$.MODULE$.mergeNewCookie(
                     req.cookies(),
-                    cookie.asScala()
+                    JavaHelpers$.MODULE$.cookieToScalaCookie(cookie)
             );
             attr(new TypedKey(RequestAttrKey.Cookies()), new AssignedCell(newCookies));
             return this;
@@ -2001,7 +1841,6 @@ public class Http {
          * @param sameSite The SameSite value (Strict or Lax)
          * @deprecated Use {@link #setCookie(Http.Cookie)} instead.
          */
-        @Deprecated
         public void setCookie(
                 String name, String value, Integer maxAge, String path, String domain,
                 boolean secure, boolean httpOnly, SameSite sameSite) {
@@ -2319,14 +2158,6 @@ public class Http {
                 return Optional.empty();
             }
         }
-
-        public play.api.mvc.Cookie asScala() {
-            OptionalInt optMaxAge = maxAge == null ? OptionalInt.empty() : OptionalInt.of(maxAge);
-            Optional<String> optDomain = Optional.ofNullable(domain());
-            Optional<play.api.mvc.Cookie.SameSite> optSameSite = sameSite().map(SameSite::asScala);
-            return new play.api.mvc.Cookie(name(), value(), OptionConverters.toScala(optMaxAge), path(),
-                OptionConverters.toScala(optDomain), secure(), httpOnly(), OptionConverters.toScala(optSameSite));
-        }
     }
 
     /*
@@ -2502,7 +2333,6 @@ public class Http {
         String IF_RANGE = "If-Range";
         String IF_UNMODIFIED_SINCE = "If-Unmodified-Since";
         String LAST_MODIFIED = "Last-Modified";
-        String LINK = "Link";
         String LOCATION = "Location";
         String MAX_FORWARDS = "Max-Forwards";
         String PRAGMA = "Pragma";
@@ -2537,13 +2367,6 @@ public class Http {
         String X_FORWARDED_PORT = "X-Forwarded-Port";
         String X_FORWARDED_PROTO = "X-Forwarded-Proto";
         String X_REQUESTED_WITH = "X-Requested-With";
-        String STRICT_TRANSPORT_SECURITY = "Strict-Transport-Security";
-        String X_FRAME_OPTIONS = "X-Frame-Options";
-        String X_XSS_PROTECTION = "X-XSS-Protection";
-        String X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options";
-        String X_PERMITTED_CROSS_DOMAIN_POLICIES = "X-Permitted-Cross-Domain-Policies";
-        String CONTENT_SECURITY_POLICY = "Content-Security-Policy";
-        String REFERRER_POLICY = "Referrer-Policy";
     }
 
     /**

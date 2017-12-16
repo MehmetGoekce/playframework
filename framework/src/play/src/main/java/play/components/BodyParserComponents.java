@@ -20,10 +20,10 @@ public interface BodyParserComponents extends HttpErrorHandlerComponents,
 
     default PlayBodyParsers scalaBodyParsers() {
         return PlayBodyParsers$.MODULE$.apply(
-                tempFileCreator().asScala(),
-                scalaHttpErrorHandler(),
                 httpConfiguration().parser(),
-                materializer()
+                scalaHttpErrorHandler(),
+                materializer(),
+                tempFileCreator().asScala()
         );
     }
 

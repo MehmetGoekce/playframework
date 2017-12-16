@@ -6,7 +6,6 @@ package play.it.http.parsing
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import play.api.Application
 import play.api.mvc._
 import play.api.test._
 
@@ -14,12 +13,10 @@ class DefaultBodyParserSpec extends PlaySpecification {
 
   "The default body parser" should {
 
-    implicit def defaultBodyParser(implicit app: Application) = app.injector.instanceOf[PlayBodyParsers].default
-
-    def parse(method: String, contentType: Option[String], body: ByteString)(implicit mat: Materializer, defaultBodyParser: BodyParser[AnyContent]) = {
+    def parse(method: String, contentType: Option[String], body: ByteString)(implicit mat: Materializer) = {
       val request = FakeRequest(method, "/x").withHeaders(
         contentType.map(CONTENT_TYPE -> _).toSeq :+ (CONTENT_LENGTH -> body.length.toString): _*)
-      await(defaultBodyParser(request).run(Source.single(body)))
+      await(BodyParsers.parse.default(request).run(Source.single(body)))
     }
 
     "parse text bodies for DELETE requests" in new WithApplication() {
@@ -53,7 +50,7 @@ class DefaultBodyParserSpec extends PlaySpecification {
     }
 
     "parse unknown empty bodies as empty for PUT requests" in new WithApplication() {
-      parse("PUT", None, ByteString.empty) must beRight(AnyContentAsEmpty)
+      parse("PUT", None, ByteString.empty) must_== Right(AnyContentAsEmpty)
     }
 
     "parse unknown bodies as raw for PUT requests" in new WithApplication() {

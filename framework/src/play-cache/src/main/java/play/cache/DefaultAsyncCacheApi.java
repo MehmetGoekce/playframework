@@ -3,22 +3,18 @@
  */
 package play.cache;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.TimeUnit;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 import akka.Done;
 import play.libs.Scala;
 import scala.concurrent.duration.Duration;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+
 import static scala.compat.java8.FutureConverters.toJava;
 
-/**
- * Adapts a Scala AsyncCacheApi to a Java AsyncCacheApi. This is Play's default Java AsyncCacheApi implementation.
- */
 @Singleton
 public class DefaultAsyncCacheApi implements AsyncCacheApi {
 
@@ -27,11 +23,6 @@ public class DefaultAsyncCacheApi implements AsyncCacheApi {
     @Inject
     public DefaultAsyncCacheApi(play.api.cache.AsyncCacheApi cacheApi) {
         this.asyncCacheApi = cacheApi;
-    }
-
-    @Override
-    public SyncCacheApi sync() {
-        return new SyncCacheApiAdapter(asyncCacheApi.sync());
     }
 
     public <T> CompletionStage<T> get(String key) {
@@ -48,19 +39,15 @@ public class DefaultAsyncCacheApi implements AsyncCacheApi {
     }
 
     public CompletionStage<Done> set(String key, Object value, int expiration) {
-        return toJava(asyncCacheApi.set(key, value, intToDuration(expiration)));
+        return toJava(asyncCacheApi.set(key, value, intToDuration(expiration))).thenApply(ignore -> null);
     }
 
     public CompletionStage<Done> set(String key, Object value) {
-        return toJava(asyncCacheApi.set(key, value, Duration.Inf()));
+        return toJava(asyncCacheApi.set(key, value, Duration.Inf())).thenApply(ignore -> null);
     }
 
     public CompletionStage<Done> remove(String key) {
-        return toJava(asyncCacheApi.remove(key));
-    }
-
-    public CompletionStage<Done> removeAll() {
-        return toJava(asyncCacheApi.removeAll());
+        return toJava(asyncCacheApi.remove(key)).thenApply($ -> null);
     }
 
     private Duration intToDuration(int seconds) {

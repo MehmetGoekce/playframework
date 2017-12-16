@@ -59,8 +59,7 @@ object Cookie {
     def asJava: play.mvc.Http.Cookie.SameSite = play.mvc.Http.Cookie.SameSite.parse(value).get
   }
   object SameSite {
-    private[play] val values: Seq[SameSite] = Seq(Strict, Lax)
-    def parse(value: String): Option[SameSite] = values.find(_ matches value)
+    def parse(value: String): Option[SameSite] = Seq(Strict, Lax).find(_ matches value)
     case object Strict extends SameSite("Strict")
     case object Lax extends SameSite("Lax")
   }
@@ -154,8 +153,6 @@ object Cookies extends CookieHeaderEncoding {
  */
 trait CookieHeaderEncoding {
 
-  import play.core.cookie.encoding.DefaultCookie
-
   private implicit val markerContext = SecurityMarkerContext
 
   protected def config: CookiesConfiguration
@@ -172,6 +169,7 @@ trait CookieHeaderEncoding {
   import scala.collection.JavaConverters._
 
   // We use netty here but just as an API to handle cookies encoding
+  import play.core.netty.utils.DefaultCookie
 
   private val logger = Logger(this.getClass)
 
@@ -413,7 +411,7 @@ trait CookieBaker[T <: AnyRef] { self: CookieDataCodec =>
    */
   def encodeAsCookie(data: T): Cookie = {
     val cookie = encode(serialize(data))
-    Cookie(COOKIE_NAME, cookie, maxAge, path, domain, secure, httpOnly, sameSite)
+    Cookie(COOKIE_NAME, cookie, maxAge, path, domain, secure, httpOnly)
   }
 
   /**
@@ -501,25 +499,12 @@ trait UrlEncodedCookieDataCodec extends CookieDataCodec {
    */
   def decode(data: String): Map[String, String] = {
 
-    def urldecode(data: String): Map[String, String] = {
-      // In some cases we've seen clients ignore the Max-Age and Expires on a cookie, and fail to properly clear the
-      // cookie. This can cause the client to send an empty cookie back to us after we've attempted to clear it. So
-      // just decode empty cookies to an empty map. See https://github.com/playframework/playframework/issues/7680.
-      if (data.isEmpty) {
-        Map.empty[String, String]
-      } else {
-        data.split("&").flatMap { pair =>
-          pair.span(_ != '=') match { // "foo=bar".span(_ != '=') -> (foo,=bar)
-            case (_, "") => // Skip invalid
-              Option.empty[(String, String)]
-
-            case (encName, encVal) =>
-              Some(URLDecoder.decode(encName, "UTF-8") -> URLDecoder.decode(
-                encVal.tail, "UTF-8"))
-
-          }
-        }(scala.collection.breakOut)
-      }
+    def urldecode(data: String) = {
+      data
+        .split("&")
+        .map(_.split("=", 2))
+        .map(p => URLDecoder.decode(p(0), "UTF-8") -> URLDecoder.decode(p(1), "UTF-8"))
+        .toMap
     }
 
     // Do not change this unless you understand the security issues behind timing attacks.
@@ -613,18 +598,6 @@ trait JWTCookieDataCodec extends CookieDataCodec {
         logger.warn(s"decode: expired JWT found! id = $id, message = ${e.getMessage}")(SecurityMarkerContext)
         Map.empty
 
-      case e: io.jsonwebtoken.SignatureException =>
-        // Thrown when an invalid cookie signature is found -- this can be confusing to end users
-        // so give a special logging message to indicate problem.
-
-        logger.warn(s"decode: cookie has invalid signature! message = ${e.getMessage}")(SecurityMarkerContext)
-        val devLogger = logger.forMode(Mode.Dev)
-        devLogger.info(
-          "The JWT signature in the cookie does not match the locally computed signature with the server. "
-            + "This usually indicates the browser has a leftover cookie from another Play application, so clearing "
-            + "cookies may resolve this error message.")
-        Map.empty
-
       case NonFatal(e) =>
         logger.warn(s"decode: could not decode JWT: ${e.getMessage}", e)(SecurityMarkerContext)
         Map.empty
@@ -684,8 +657,8 @@ object JWTCookieDataCodec {
         val msg = s"Invalid header algorithm $headerAlgorithm in JWT $id"
         throw new IllegalStateException(msg)
       }
-
-      jws.getBody.asScala.toMap
+      val claims: Claims = jws.getBody
+      claims.asScala.toMap
     }
 
     /**

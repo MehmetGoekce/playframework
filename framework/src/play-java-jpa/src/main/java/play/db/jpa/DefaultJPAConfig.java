@@ -3,14 +3,16 @@
  */
 package play.db.jpa;
 
-import com.google.common.collect.ImmutableSet;
-import com.typesafe.config.Config;
+import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import java.util.Map;
-import java.util.Set;
+
+import com.typesafe.config.Config;
+
+import com.google.common.collect.ImmutableSet;
 
 /**
  * Default JPA configuration.
@@ -38,18 +40,14 @@ public class DefaultJPAConfig implements JPAConfig {
 
         @Inject
         public JPAConfigProvider(Config configuration) {
-            String jpaKey = configuration.getString("play.jpa.config");
-
             ImmutableSet.Builder<JPAConfig.PersistenceUnit> persistenceUnits = new ImmutableSet.Builder<JPAConfig.PersistenceUnit>();
-
-            if (configuration.hasPath(jpaKey)) {
-                Config jpa = configuration.getConfig(jpaKey);
+            Config jpa = configuration.getConfig("jpa");
+            if (jpa != null) {
                 jpa.entrySet().forEach(entry -> {
                     String key = entry.getKey();
                     persistenceUnits.add(new JPAConfig.PersistenceUnit(key, jpa.getString(key)));
                 });
             }
-
             jpaConfig = new DefaultJPAConfig(persistenceUnits.build());
         }
 

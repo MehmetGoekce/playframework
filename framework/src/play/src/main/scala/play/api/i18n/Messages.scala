@@ -4,21 +4,15 @@
 package play.api.i18n
 
 import java.net.URL
-import java.util.Collections
-import java.util.function.Function
-import java.util.stream.Collectors
 import javax.inject.{ Inject, Provider, Singleton }
 
 import play.api._
 import play.api.http.HttpConfiguration
 import play.api.mvc._
-import play.libs.Scala
 import play.mvc.Http
 import play.utils.{ PlayIO, Resources }
 
 import scala.annotation.implicitNotFound
-import scala.collection.mutable
-import scala.collection.breakOut
 import scala.io.Codec
 import scala.language._
 import scala.util.parsing.combinator._
@@ -32,7 +26,7 @@ import scala.util.parsing.input._
  * val msgString = Messages("items.found", items.size)
  * }}}
  */
-object Messages extends MessagesImplicits {
+object Messages {
 
   private[play] val messagesApiCache = Application.instanceCache[MessagesApi]
 
@@ -102,7 +96,7 @@ object Messages extends MessagesImplicits {
    */
   def parse(messageSource: MessageSource, messageSourceName: String): Either[PlayException.ExceptionSource, Map[String, String]] = {
     new Messages.MessagesParser(messageSource, "").parse.right.map { messages =>
-      messages.map { message => message.key -> message.pattern }(breakOut)
+      messages.map { message => message.key -> message.pattern }.toMap
     }
   }
 
@@ -133,7 +127,7 @@ object Messages extends MessagesImplicits {
     val ignoreWhiteSpace = opt(whiteSpace)
     val blankLine = ignoreWhiteSpace <~ newLine ^^ { case _ => Comment("") }
     val comment = """^#.*""".r ^^ { case s => Comment(s) }
-    val messageKey = namedError("""^[a-zA-Z0-9$_.-]+""".r, "Message key expected")
+    val messageKey = namedError("""^[a-zA-Z0-9_.-]+""".r, "Message key expected")
     val messagePattern = namedError(
       rep(
         ("""\""" ^^ (_ => "")) ~> ( // Ignore the leading \
@@ -318,15 +312,9 @@ trait Messages extends MessagesProvider {
 /**
  * This trait is used to indicate when a Messages instance can be produced.
  */
-@implicitNotFound("An implicit MessagesProvider instance was not found.  Please see https://www.playframework.com/documentation/2.6.x/ScalaForms#Passing-MessagesProvider-to-Form-Helpers")
+@implicitNotFound("An implicit MessagesProvider instance was not found.  Please see https://www.playframework.com/documentation/latest/ScalaForms#passing-messages-to-form-helpers")
 trait MessagesProvider {
   def messages: Messages
-}
-
-trait MessagesImplicits {
-  implicit def implicitMessagesProviderToMessages(implicit messagesProvider: MessagesProvider): Messages = {
-    messagesProvider.messages
-  }
 }
 
 /**
@@ -429,23 +417,6 @@ class DefaultMessagesApi @Inject() (
     val langCookieHttpOnly: Boolean = false,
     val httpConfiguration: HttpConfiguration = HttpConfiguration()) extends MessagesApi {
 
-  // Java API
-  def this(javaMessages: java.util.Map[String, java.util.Map[String, String]], langs: play.i18n.Langs) = {
-    this(
-      Scala.asScala(javaMessages).map { case (k, v) => (k, Scala.asScala(v)) },
-      langs.asScala(),
-      "PLAY_LANG",
-      false,
-      false,
-      HttpConfiguration()
-    )
-  }
-
-  // Java API
-  def this(messages: java.util.Map[String, java.util.Map[String, String]]) = {
-    this(messages, new DefaultLangs().asJava)
-  }
-
   import java.text._
 
   override def preferred(candidates: Seq[Lang]): Messages = {
@@ -539,12 +510,11 @@ class DefaultMessagesApiProvider @Inject() (
     config.get[Boolean]("play.i18n.langCookieHttpOnly")
 
   protected def loadAllMessages: Map[String, Map[String, String]] = {
-    (langs.availables.map { lang =>
-      val code = lang.code
-      code -> loadMessages(s"messages.${code}")
-    }(breakOut): Map[String, Map[String, String]]).
-      +("default" -> loadMessages("messages")) + (
-        "default.play" -> loadMessages("messages.default"))
+    langs.availables.map(_.code).map { lang =>
+      (lang, loadMessages("messages." + lang))
+    }.toMap
+      .+("default" -> loadMessages("messages"))
+      .+("default.play" -> loadMessages("messages.default"))
   }
 
   protected def loadMessages(file: String): Map[String, String] = {

@@ -43,7 +43,6 @@ trait CORSCommonSpec extends PlaySpecification {
         )).get
 
         status(result) must_== OK
-        header(VARY, result) must beSome(ORIGIN)
         mustBeNoAccessControlResponseHeaders(result)
       }
       "without a port number" in withApplication() { app =>
@@ -53,7 +52,6 @@ trait CORSCommonSpec extends PlaySpecification {
         )).get
 
         status(result) must_== OK
-        header(VARY, result) must beSome(ORIGIN)
         mustBeNoAccessControlResponseHeaders(result)
       }
     }
@@ -69,7 +67,6 @@ trait CORSCommonSpec extends PlaySpecification {
         )).get
 
         status(result) must_== OK
-        header(VARY, result) must beSome(ORIGIN)
         mustBeNoAccessControlResponseHeaders(result)
       }
       "forbidden" in withApplication(conf = serveForbidden) { app =>
@@ -78,7 +75,6 @@ trait CORSCommonSpec extends PlaySpecification {
         )).get
 
         status(result) must_== OK
-        header(VARY, result) must beSome(ORIGIN)
         mustBeNoAccessControlResponseHeaders(result)
       }
     }
@@ -91,7 +87,6 @@ trait CORSCommonSpec extends PlaySpecification {
 
       status(result) must_== OK
       header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome("http://www.example.com")
-      header(VARY, result) must beSome(ORIGIN)
     }
 
     "not consider different ports to be the same origin" in withApplication() { app =>
@@ -102,7 +97,6 @@ trait CORSCommonSpec extends PlaySpecification {
 
       status(result) must_== OK
       header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome("http://www.example.com:9000")
-      header(VARY, result) must beSome(ORIGIN)
     }
 
     "not consider different protocols to be the same origin" in withApplication() { app =>
@@ -113,7 +107,6 @@ trait CORSCommonSpec extends PlaySpecification {
 
       status(result) must_== OK
       header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome("https://www.example.com:9000")
-      header(VARY, result) must beSome(ORIGIN)
     }
 
     "forbid an empty origin header" in withApplication() { app =>

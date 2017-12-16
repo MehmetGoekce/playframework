@@ -3,14 +3,6 @@
 
 Before you start with Play forms, read the documentation on the [[Play enhancer|PlayEnhancer]]. The Play enhancer generates accessors for fields in Java classes for you, so that you don't have to generate them yourself. You may decide to use this as a convenience. All the examples below show manually writing accessors for your classes.
 
-## Enabling/Disabling the forms module
-
-By default, Play includes the Java forms module (`play-java-forms`) when enabling the `PlayJava` SBT plugin, so there is nothing to enable if you already have `enablePlugins(PlayJava)` on your project.
-
-The forms module is also available in `PlayImport` as `javaForms`, which can be used with `libraryDependencies += javaForms` in your `build.sbt`.
-
-> **Note:** If you are not using forms, you can remove the forms dependency by using the `PlayMinimalJava` SBT plugin instead of `PlayJava`. This also allows you to remove several transitive dependencies only used by the forms module, including several Spring modules and the Hibernate validator.
-    
 ## Defining a form
 
 The `play.data` package contains several helpers to handle HTTP form data submission and validation. The easiest way to handle a form submission is to define a `play.data.Form` that wraps an existing class:
@@ -197,9 +189,10 @@ Using a group sequence is especially a good practice when you have a `validate` 
 
 Sometimes you need more sophisticated validation processes. E.g. when a user signs up you want to check if his email address already exists in the database and if so validation should fail.
 
-Because constraints support both [[runtime Dependency Injection|JavaDependencyInjection]] and [[|JavaCompileTimeDependencyInjection]], we can easily create our own custom (class-level) constraint which gets a `Database` object injected - which we can use later in the validation process. Of course you can also inject other components like `MessagesApi`, `JPAApi`, etc.
+Because constraints support [[Dependency Injection|JavaDependencyInjection]] we can easily create our own custom (class-level) constraint which gets a `Database` object injected - which we can use later in the validation process. (Actually you could also inject other components like `MessagesApi`, `JPAApi`, etc.)
 
-> **Note:** You only need to create one class-level constraint for each cross concern. For example, the constraint we will create in this section is reusable and can be used for all validation processes where you need to access the database. The reason why Play doesn't provide any generic class-level constraints with dependency injected components is because Play doesn't know which components you might have enabled in your project.
+> You only need to create one class-level constraint for each cross concern.
+**For example:** The constraint we will create in this section is reusable and can be used for all validation processes where you need to access the database. The reason why Play doesn't provide any generic class-level constraints with dependency injected components is because Play doesn't know which components you might have enabled in your project.
 
 First let's set up the interface with the `validate` method we will implement in our form later. You can see the method gets passed a `Database` object (Checkout the [[database docs|JavaDatabase]]):
 
@@ -213,13 +206,7 @@ Finally this is how our constraint implementation looks like:
 
 @[constraint](code/javaguide/forms/customconstraint/ValidateWithDBValidator.java)
 
-As you can see we inject the `Database` object into the constraint's constructor and use it later when calling `validate`. When using runtime Dependency Injection, Guice will automatically inject the `Database` object, but for compile-time Dependency Injection you need to do that by yourself:
-
-@[constraint-compile-timed-di](code/javaguide/forms/customconstraint/ValidateWithDBComponents.java)
-
-> **Note**: you don't need to create the `database` instance by yourself, it is already defined in the implemented interfaces.
-
-This way, your validator will be available when necessary.
+As you can see we inject the `Database` object into the constraint's constructor and use it later when calling `validate`.
 
 When writing your own class-level constraints you can pass following objects to the `reportValidationStatus` method: A `ValidationError`, a `List<ValidationError>` or a `String` (handled as global error). Any other objects will be ignored by Play.
 

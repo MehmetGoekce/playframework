@@ -415,10 +415,7 @@ public interface BodyParser<A> {
 
         @Override
         protected final Accumulator<ByteString, F.Either<Result, A>> apply1(Http.RequestHeader request) {
-            return Accumulator.strict(
-                    maybeStrictBytes -> CompletableFuture.completedFuture(maybeStrictBytes.orElse(ByteString.empty())),
-                    Sink.fold(ByteString.empty(), ByteString::concat)
-            ).mapFuture(bytes -> {
+            return Accumulator.fromSink(Sink.fold(ByteString.empty(), ByteString::concat)).mapFuture(bytes -> {
                 try {
                     return CompletableFuture.completedFuture(F.Either.Right(parse(request, bytes)));
                 } catch (Exception e) {

@@ -12,6 +12,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 import play.Application;
+import play.test.Helpers;
 
 public class FakeApplicationTest {
 
@@ -42,7 +43,7 @@ public class FakeApplicationTest {
     private void fakeApps() {
 
       //#test-fakeapp
-      Application fakeApp = fakeApplication();
+      Application fakeApp = Helpers.fakeApplication();
 
       Application fakeAppWithMemoryDb = fakeApplication(inMemoryDatabase("test"));
       //#test-fakeapp

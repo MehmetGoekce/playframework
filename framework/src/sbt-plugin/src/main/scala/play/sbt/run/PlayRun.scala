@@ -4,11 +4,10 @@
 package play.sbt.run
 
 import annotation.tailrec
+import collection.JavaConverters._
 
 import sbt._
 import sbt.Keys._
-
-import play.dev.filewatch.{ SourceModificationWatch => PlaySourceModificationWatch, WatchState => PlayWatchState }
 
 import play.sbt._
 import play.sbt.PlayImport._
@@ -28,7 +27,7 @@ import com.typesafe.sbt.web.SbtWeb.autoImport._
 /**
  * Provides mechanisms for running a Play application in SBT
  */
-object PlayRun extends PlayRunCompat {
+object PlayRun {
 
   class TwirlSourceMapping extends GeneratedSourceMapping {
     def getOriginalLine(generatedSource: File, line: Integer): Integer = {
@@ -117,7 +116,7 @@ object PlayRun extends PlayRunCompat {
           case Some(watched) =>
             // ~ run mode
             interaction doWithoutEcho {
-              twiddleRunMonitor(watched, state, devModeServer.buildLink, Some(PlayWatchState.empty))
+              twiddleRunMonitor(watched, state, devModeServer.buildLink, Some(WatchState.empty))
             }
           case None =>
             // run mode
@@ -133,24 +132,23 @@ object PlayRun extends PlayRunCompat {
    * Monitor changes in ~run mode.
    */
   @tailrec
-  private def twiddleRunMonitor(watched: Watched, state: State, reloader: BuildLink, ws: Option[PlayWatchState] = None): Unit = {
-    val ContinuousState = AttributeKey[PlayWatchState]("watch state", "Internal: tracks state for continuous execution.")
+  private def twiddleRunMonitor(watched: Watched, state: State, reloader: BuildLink, ws: Option[WatchState] = None): Unit = {
+    val ContinuousState = AttributeKey[WatchState]("watch state", "Internal: tracks state for continuous execution.")
     def isEOF(c: Int): Boolean = c == 4
 
     @tailrec def shouldTerminate: Boolean = (System.in.available > 0) && (isEOF(System.in.read()) || shouldTerminate)
 
-    val sourcesFinder: PlaySourceModificationWatch.PathFinder = getSourcesFinder(watched, state)
-    val watchState = ws.getOrElse(state get ContinuousState getOrElse PlayWatchState.empty)
+    val sourcesFinder = PathFinder { watched watchPaths state }
+    val watchState = ws.getOrElse(state get ContinuousState getOrElse WatchState.empty)
 
     val (triggered, newWatchState, newState) =
       try {
-        val (triggered: Boolean, newWatchState: PlayWatchState) = PlaySourceModificationWatch.watch(sourcesFinder, getPollInterval(watched), watchState)(shouldTerminate)
+        val (triggered, newWatchState) = SourceModificationWatch.watch(sourcesFinder, watched.pollInterval, watchState)(shouldTerminate)
         (triggered, newWatchState, state)
       } catch {
         case e: Exception =>
           val log = state.log
           log.error("Error occurred obtaining files to watch.  Terminating continuous execution...")
-          log.trace(e)
           (false, watchState, state.fail)
       }
 
@@ -169,7 +167,7 @@ object PlayRun extends PlayRunCompat {
       }
 
       // Avoid launching too much compilation
-      sleepForPoolDelay
+      Thread.sleep(Watched.PollDelayMillis)
 
       // Call back myself
       twiddleRunMonitor(watched, newState, reloader, Some(newWatchState))
@@ -184,9 +182,8 @@ object PlayRun extends PlayRunCompat {
 
   val playAllAssetsSetting = playAllAssets := Seq(playPrefixAndAssets.value)
 
-  val playAssetsClassLoaderSetting = playAssetsClassLoader := {
-    val playAllAssetsValue = playAllAssets.value
-    parent => new AssetsClassLoader(parent, playAllAssetsValue)
+  val playAssetsClassLoaderSetting = playAssetsClassLoader := { parent =>
+    new AssetsClassLoader(parent, playAllAssets.value)
   }
 
   val playRunProdCommand = Command.args("runProd", "<port>")(testProd)
@@ -243,12 +240,13 @@ object PlayRun extends PlayRunCompat {
           } ++
           javaProductionOptions ++
           Seq("-Dhttp.port=" + httpPort.getOrElse("disabled"))
+        val builder = new java.lang.ProcessBuilder(args.asJava)
         new Thread {
           override def run() {
             if (noExitSbt) {
-              createAndRunProcess(args)
+              Process(builder).!
             } else {
-              System.exit(createAndRunProcess(args))
+              System.exit(Process(builder).!)
             }
           }
         }.start()
@@ -265,7 +263,7 @@ object PlayRun extends PlayRunCompat {
         if (noExitSbt) {
           state
         } else {
-          state.copy(remainingCommands = List.empty)
+          state.copy(remainingCommands = Seq.empty)
         }
     }
 
@@ -280,7 +278,7 @@ object PlayRun extends PlayRunCompat {
       println("No PID file found. Are you sure the app is running?")
     } else {
       val pid = IO.read(pidFile)
-      kill(pid)
+      s"kill $pid".!
       // PID file will be deleted by a shutdown hook attached on start in ServerStart.scala
       println(s"Stopped application with process ID $pid")
     }
@@ -289,7 +287,7 @@ object PlayRun extends PlayRunCompat {
     if (args.contains("--no-exit-sbt")) {
       state
     } else {
-      state.copy(remainingCommands = List.empty)
+      state.copy(remainingCommands = Seq.empty)
     }
   }
 }
